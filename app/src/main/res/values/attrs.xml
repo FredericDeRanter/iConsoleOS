@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="CustomTimePicker">
+        <!--        <attr name="MaxMinuteValue" format="integer"/>-->
+        <attr name="initialTotalSecondsValue" format="integer" />
+        <attr name="ThreeDigitMinutes" format="boolean" />
+    </declare-styleable>
+    <declare-styleable name="LevelPicker">
+        <attr name="buttonSize" format="dimension" />
+
+    </declare-styleable>
+</resources>

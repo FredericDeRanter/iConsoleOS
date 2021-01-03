@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:viewBindingIgnore="true">
+
+    <com.michaelmuenzer.android.scrollablennumberpicker.ScrollableNumberPicker
+        android:id="@+id/np_m"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:snp_buttonTouchScaleFactor="2"
+        app:snp_maxValue="99"
+        app:snp_minValue="0"
+        app:snp_orientation="vertical"
+        app:snp_stepSize="1"
+        app:snp_value_text_size="32sp" />
+
+    <TextView
+        android:id="@+id/textView18"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:text="min"
+        app:layout_constraintBottom_toBottomOf="@+id/np_m"
+        app:layout_constraintStart_toEndOf="@+id/np_m"
+        app:layout_constraintTop_toTopOf="@+id/np_m" />
+
+    <com.michaelmuenzer.android.scrollablennumberpicker.ScrollableNumberPicker
+        android:id="@+id/np_s"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        app:layout_constraintStart_toEndOf="@+id/textView18"
+        app:layout_constraintTop_toTopOf="parent"
+        app:snp_buttonTouchScaleFactor="2"
+        app:snp_maxValue="59"
+        app:snp_minValue="0"
+        app:snp_orientation="vertical"
+        app:snp_stepSize="1"
+        app:snp_value_text_size="32sp" />
+
+    <TextView
+        android:id="@+id/textView20"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="sec"
+        app:layout_constraintBottom_toBottomOf="@+id/np_s"
+        app:layout_constraintStart_toEndOf="@+id/np_s"
+        app:layout_constraintTop_toTopOf="@+id/np_s" />
+</merge>

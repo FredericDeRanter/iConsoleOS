@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:viewBindingIgnore="true">
+
+    <com.shawnlin.numberpicker.NumberPicker
+        android:id="@+id/np_m"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:np_max="99"
+        app:np_min="0"
+        app:np_order="descending" />
+
+    <TextView
+        android:id="@+id/textView18"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="m"
+        app:layout_constraintBottom_toBottomOf="@+id/np_m"
+        app:layout_constraintStart_toEndOf="@+id/np_m"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <com.shawnlin.numberpicker.NumberPicker
+        android:id="@+id/np_s"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toEndOf="@+id/textView18"
+        app:layout_constraintTop_toTopOf="parent"
+        app:np_max="59"
+        app:np_min="0"
+        app:np_order="descending" />
+
+    <TextView
+        android:id="@+id/textView20"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="s"
+        app:layout_constraintBottom_toBottomOf="@+id/np_s"
+        app:layout_constraintStart_toEndOf="@+id/np_s"
+        app:layout_constraintTop_toTopOf="parent" />
+</merge>

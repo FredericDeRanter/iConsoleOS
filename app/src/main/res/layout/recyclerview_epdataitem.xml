@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content">
+
+    <!--    <ImageView
+        android:id="@+id/handle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical|right"
+        android:layout_marginStart="8dp"
+        android:layout_weight="1"
+        android:scaleType="center"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:srcCompat="@android:drawable/ic_dialog_dialer" />-->
+
+    <Spinner
+        android:id="@+id/exPrDataType"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:entries="@array/profileDataTypes"
+        android:spinnerMode="dropdown"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/textView12"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:text="@string/ExProfDuration"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/exPrDataType"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <eu.le_tian.iConsoleOS.customtimepicker.CustomTimePicker2
+        android:id="@+id/exPrDataDuration"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/textView12"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/textView13"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:text="@string/ExProfLevel"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/exPrDataDuration"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <com.michaelmuenzer.android.scrollablennumberpicker.ScrollableNumberPicker
+        android:id="@+id/exPrDataLevel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/textView13"
+        app:layout_constraintTop_toTopOf="parent"
+        app:snp_buttonTouchScaleFactor="2"
+        app:snp_maxValue="32"
+        app:snp_minValue="1"
+        app:snp_orientation="vertical"
+        app:snp_stepSize="1"
+        app:snp_value_text_size="32sp" />
+
+    <ImageButton
+        android:id="@+id/exPrDataButtonUp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:src="@drawable/ic_arrow_up"
+        app:layout_constraintStart_toEndOf="@+id/exPrDataLevel"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="ContentDescription" />
+
+    <ImageButton
+        android:id="@+id/exPrDataButtonDown"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:src="@drawable/ic_arrow_down"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/exPrDataLevel" />
+
+    <Button
+        android:id="@+id/exPrDataButtonDelete"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:text="@string/ExProfDelete"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/exPrDataButtonDown"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/exPrDataID"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/ExProfID"
+        app:layout_constraintBottom_toTopOf="@+id/exPrDataOrder"
+        app:layout_constraintStart_toEndOf="@+id/exPrDataButtonDelete"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/exPrDataOrder"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/ExProfOrder"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/exPrDataButtonDelete"
+        app:layout_constraintTop_toBottomOf="@+id/exPrDataID" />
+
+
+    <TextView
+        android:id="@+id/exPrDataParentID"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/ExProfParentID"
+        app:layout_constraintStart_toEndOf="@+id/exPrDataButtonDelete"
+        app:layout_constraintTop_toBottomOf="@+id/exPrDataOrder" />
+
+
+</androidx.constraintlayout.widget.ConstraintLayout>

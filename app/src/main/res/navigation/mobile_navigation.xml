@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/mobile_navigation"
+    app:startDestination="@+id/nav_home">
+
+    <fragment
+        android:id="@+id/nav_home"
+        android:name="eu.le_tian.iConsoleOS.ui.HomeFragment"
+        android:label="@string/menu_home"
+        tools:layout="@layout/fragment_home" />
+
+    <fragment
+        android:id="@+id/nav_settings"
+        android:name="eu.le_tian.iConsoleOS.ui.SettingsFragment"
+        android:label="@string/menu_settings"
+        tools:layout="@layout/fragment_settings" />
+
+    <fragment
+        android:id="@+id/nav_ExerciseProfile"
+        android:name="eu.le_tian.iConsoleOS.ui.ExerciseProfileFragment"
+        android:label="@string/menu_exerciseProfile"
+        tools:layout="@layout/fragment_exerciseprofile" />
+
+    <fragment
+        android:id="@+id/nav_tools"
+        android:name="eu.le_tian.iConsoleOS.ui.HistoryFragment"
+        android:label="@string/menu_tools"
+        tools:layout="@layout/fragment_history" />
+
+    <fragment
+        android:id="@+id/nav_share"
+        android:name="eu.le_tian.iConsoleOS.ui.share.ShareFragment"
+        android:label="@string/menu_share"
+        tools:layout="@layout/fragment_share" />
+
+    <fragment
+        android:id="@+id/nav_send"
+        android:name="eu.le_tian.iConsoleOS.ui.send.SendFragment"
+        android:label="@string/menu_send"
+        tools:layout="@layout/fragment_send" />
+</navigation>
