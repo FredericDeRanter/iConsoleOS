@@ -1,11 +1,12 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 29
+    namespace "eu.le_tian.drawertest"
+    compileSdkVersion 36
     defaultConfig {
         applicationId "eu.le_tian.drawertest"
         minSdkVersion 24
-        targetSdkVersion 29
+        targetSdkVersion 33
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -38,7 +39,7 @@ dependencies {
     implementation 'androidx.navigation:navigation-ui:2.2.1'
     implementation 'androidx.lifecycle:lifecycle-extensions:2.2.0'
     implementation 'com.android.support:support-annotations:28.0.0'
-    implementation 'com.shawnlin:number-picker:2.4.9'
+    implementation 'io.github.ShawnLin013:number-picker:2.4.13'
     implementation 'com.github.alpbak:BoxedVerticalSeekBar:1.1.1'
     implementation 'com.michaelmuenzer.android:ScrollableNumberPicker:0.2.2'
     implementation 'com.opencsv:opencsv:5.1'
