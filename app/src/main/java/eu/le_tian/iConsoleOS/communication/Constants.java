@@ -13,6 +13,8 @@ public interface Constants {
     public static final int MESSAGE_DEVICE_NAME = 4;
     public static final int MESSAGE_TOAST = 5;
     public static final int MESSAGE_DATA = 6;
+    /** Bluetooth adapter stuck or failed to turn on; obj = description. */
+    public static final int MESSAGE_BT_STUCK = 7;
 
     // Key names received from the BluetoothChatService Handler
     public static final String DEVICE_NAME = "device_name";

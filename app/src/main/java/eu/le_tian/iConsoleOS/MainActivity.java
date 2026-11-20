@@ -22,6 +22,7 @@ import android.view.Menu;
 
 import eu.le_tian.iConsoleOS.communication.BluetoothChatService;
 import eu.le_tian.iConsoleOS.communication.ChannelService;
+import eu.le_tian.iConsoleOS.communication.BtLog;
 import eu.le_tian.iConsoleOS.ui.HomeFragment;
 
 public class MainActivity extends AppCompatActivity {
@@ -32,6 +33,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        BtLog.init(this);
+        BtLog.log("app start " + BuildConfig.VERSION_NAME);
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);

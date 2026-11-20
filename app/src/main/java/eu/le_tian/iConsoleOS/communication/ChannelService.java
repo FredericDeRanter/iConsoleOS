@@ -48,6 +48,7 @@ public class ChannelService extends Service {
                 boolean legacyInterfaceInUse = mAntChannelProvider.isLegacyInterfaceInUse();
 
                 // If there are channels OR legacy interface in use, allow adding channels
+                BtLog.log("ANT radio service connected, channels available: " + mAntChannelProvider.getNumChannelsAvailable());
                 if (mChannelAvailable || legacyInterfaceInUse) {
                     mAllowAddChannel = true;
                 } else {
@@ -64,6 +65,7 @@ public class ChannelService extends Service {
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
+            BtLog.log("ANT radio service disconnected");
             die("Binder Died");
 
             mAntChannelProvider = null;
@@ -106,11 +108,14 @@ public class ChannelService extends Service {
     }
 
     public void openAllChannels() throws ChannelNotAvailableException {
+        BtLog.log("ANT channels open (power + speed)");
         powerChannelController = new PowerChannelController(acquireChannel());
         speedChannelController = new SpeedChannelController(acquireChannel());
     }
 
     private void closeAllChannels() {
+        if (powerChannelController != null || speedChannelController != null)
+            BtLog.log("ANT channels close");
         if (powerChannelController != null) {
             powerChannelController.close();
         }
@@ -228,7 +233,8 @@ public class ChannelService extends Service {
         super.onCreate();
 
         mAntRadioServiceBound = false;
-
+        BtLog.init(this);
+        BtLog.log("ANT service started");
         doBindAntRadioService();
 
     }
@@ -245,6 +251,7 @@ public class ChannelService extends Service {
 
     static void die(String error) {
         Log.e(TAG, "DIE: " + error);
+        BtLog.log("ANT error: " + error);
     }
 
 

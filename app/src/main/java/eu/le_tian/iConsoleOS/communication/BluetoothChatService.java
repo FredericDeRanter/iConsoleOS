@@ -7,11 +7,15 @@ import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
 
@@ -61,14 +65,89 @@ public class BluetoothChatService extends Service {
 
         mNM = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
+        BtLog.init(this);
+        BtLog.log("Bluetooth service started, adapter " + (mAdapter == null ? "missing" : adapterStateName(mAdapter.getState())));
+        IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
+        filter.addAction(Intent.ACTION_SCREEN_ON);
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
+        registerReceiver(mSystemReceiver, filter);
+    }
+
+    /** How long the adapter may stay in TURNING_ON / TURNING_OFF before we call it stuck. */
+    private static final long STUCK_AFTER_MS = 15_000;
+    private final Handler mMainHandler = new Handler(Looper.getMainLooper());
+    private int mTransitionState = -1;
+
+    private final Runnable mStuckCheck = this::checkStuck;
+
+    private void checkStuck() {
+        if (mAdapter != null && mAdapter.getState() == mTransitionState)
+            reportStuck("Bluetooth has been " + adapterStateName(mTransitionState) + " for " + STUCK_AFTER_MS / 1000 + " s");
+    }
+
+    private final BroadcastReceiver mSystemReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
+                int prev = intent.getIntExtra(BluetoothAdapter.EXTRA_PREVIOUS_STATE, -1);
+                int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1);
+                BtLog.log("adapter " + adapterStateName(prev) + " -> " + adapterStateName(state));
+                onAdapterStateChanged(prev, state);
+            } else if (Intent.ACTION_SCREEN_ON.equals(action)) {
+                BtLog.log("screen on");
+            } else if (Intent.ACTION_SCREEN_OFF.equals(action)) {
+                BtLog.log("screen off, connection " + stateName(mState));
+            }
+        }
+    };
+
+    private void onAdapterStateChanged(int prev, int state) {
+        mMainHandler.removeCallbacks(mStuckCheck);
+        if (state == BluetoothAdapter.STATE_TURNING_ON || state == BluetoothAdapter.STATE_TURNING_OFF) {
+            mTransitionState = state;
+            mMainHandler.postDelayed(mStuckCheck, STUCK_AFTER_MS);
+        }
+        if (prev == BluetoothAdapter.STATE_TURNING_ON && state == BluetoothAdapter.STATE_OFF)
+            reportStuck("Bluetooth failed to turn on");
+    }
+
+    /** Logs a stuck Bluetooth stack and tells the UI, which advises restarting the tablet. */
+    void reportStuck(String what) {
+        BtLog.log("STUCK: " + what);
+        Handler h = mHandler;
+        if (h != null)
+            h.obtainMessage(Constants.MESSAGE_BT_STUCK, what).sendToTarget();
+    }
+
+    static String adapterStateName(int state) {
+        switch (state) {
+            case BluetoothAdapter.STATE_OFF: return "OFF";
+            case BluetoothAdapter.STATE_TURNING_ON: return "TURNING_ON";
+            case BluetoothAdapter.STATE_ON: return "ON";
+            case BluetoothAdapter.STATE_TURNING_OFF: return "TURNING_OFF";
+            default: return "state " + state;
+        }
+    }
+
+    static String stateName(int state) {
+        switch (state) {
+            case STATE_NONE: return "none";
+            case STATE_LISTEN: return "listen";
+            case STATE_CONNECTING: return "connecting";
+            case STATE_CONNECTED: return "connected";
+            default: return "state " + state;
+        }
     }
 
     public boolean startIConsole() {
+        BtLog.log("workout start");
         ConnectedThread t = mConnectedThread;
         return t != null && t.startIConsole();
     }
 
     public boolean stopIConsole() {
+        BtLog.log("workout stop");
         ConnectedThread t = mConnectedThread;
         return t != null && t.stopIConsole();
     }
@@ -85,6 +164,7 @@ public class BluetoothChatService extends Service {
      */
     public synchronized void connect(BluetoothDevice device) {
         Log.d(TAG, "connect to: " + device);
+        BtLog.log("connect to " + device.getName() + " (" + device.getAddress() + ")");
 
         // Cancel any thread attempting to make a connection
         if (mState == STATE_CONNECTING) {
@@ -169,6 +249,13 @@ public class BluetoothChatService extends Service {
     @Override
     public void onDestroy() {
         stopBT();
+        BtLog.log("Bluetooth service stopped");
+        mMainHandler.removeCallbacks(mStuckCheck);
+        try {
+            unregisterReceiver(mSystemReceiver);
+        } catch (IllegalArgumentException e) {
+            // was not registered
+        }
 
         // Tell the user we stopped.
         Log.i(TAG, "onDestroy");
@@ -262,7 +349,14 @@ public class BluetoothChatService extends Service {
      * Stop all threads
      */
     public synchronized void stopBT() {
+        stopBT("disconnect requested");
+    }
+
+    /** Closes any connection; {@code reason} goes to the Bluetooth log. */
+    public synchronized void stopBT(String reason) {
         Log.d(TAG, "stopBT");
+        if (mConnectThread != null || mConnectedThread != null)
+            BtLog.log("disconnect: " + reason);
         // Cancel the persistent notification.
         mNM.cancel(NOTIFICATION);
 
@@ -285,6 +379,7 @@ public class BluetoothChatService extends Service {
      * Indicate that the connection attempt failed and notify the UI Activity.
      */
     private void connectionFailed() {
+        BtLog.log("connection failed");
         toast("Unable to connect device");
 
         mState = STATE_NONE;
@@ -298,7 +393,8 @@ public class BluetoothChatService extends Service {
     /**
      * Indicate that the connection was lost and notify the UI Activity.
      */
-    private void connectionLost() {
+    private void connectionLost(String reason) {
+        BtLog.log("connection lost: " + reason);
         toast("Device connection was lost");
 
         mState = STATE_NONE;
@@ -361,6 +457,7 @@ public class BluetoothChatService extends Service {
                 mmSocket.connect();
             } catch (IOException e) {
                 Log.e(TAG, "Standard socket connect failed, attempting fallback socket...", e);
+                BtLog.log("socket connect failed (" + e.getMessage() + "), trying fallback channel 1");
                 // Fallback method for Android RFCOMM socket reconnect issue
                 try {
                     mmFallbackSocket = (BluetoothSocket) mmDevice.getClass()
@@ -371,11 +468,13 @@ public class BluetoothChatService extends Service {
                         synchronized (BluetoothChatService.this) {
                             mConnectThread = null;
                         }
+                        BtLog.log("connected via fallback socket");
                         connected(mmFallbackSocket, mmDevice);
                         return;
                     }
                 } catch (Exception e2) {
                     Log.e(TAG, "Fallback socket connect failed as well", e2);
+                    BtLog.log("fallback socket failed: " + e2);
                     // It was leaked before: an open RFCOMM socket per failed attempt.
                     closeQuietly(mmFallbackSocket);
                     mmFallbackSocket = null;
@@ -396,6 +495,7 @@ public class BluetoothChatService extends Service {
             }
 
             // Start the connected thread
+            BtLog.log("connected");
             connected(mmSocket, mmDevice);
         }
 
@@ -415,6 +515,7 @@ public class BluetoothChatService extends Service {
         private final OutputStream mmOutStream;
         private final IConsole mmIConsole;
         private volatile boolean mmCancelled = false;
+        private volatile String mmLastError = "connection loop ended";
 
         public ConnectedThread(BluetoothSocket socket) {
             Log.d(TAG, "create ConnectedThread");
@@ -449,6 +550,7 @@ public class BluetoothChatService extends Service {
                     // processIO() returns false after this; run() then closes the socket and
                     // reports the lost connection, whatever the kind of error.
                     Log.e(TAG, "mConnectedThread Error: ", e);
+                    mmLastError = String.valueOf(e.getMessage());
                 }
             }, /* new IConsole.DebugListener() {
                 @Override
@@ -496,7 +598,7 @@ public class BluetoothChatService extends Service {
                 // Ended by an error, not by us: before, only an IOException closed the socket
                 // and any other error left it open with the state still CONNECTED.
                 closeQuietly(mmSocket);
-                connectionLost();
+                connectionLost(mmLastError);
             }
         }
 

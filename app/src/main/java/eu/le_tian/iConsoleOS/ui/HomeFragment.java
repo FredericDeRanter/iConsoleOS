@@ -43,6 +43,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import eu.le_tian.iConsoleOS.communication.BluetoothChatService;
+import eu.le_tian.iConsoleOS.communication.BtLog;
 import eu.le_tian.iConsoleOS.communication.ChannelService;
 import eu.le_tian.iConsoleOS.communication.Constants;
 import eu.le_tian.iConsoleOS.DeviceListActivity;
@@ -183,6 +184,9 @@ public class HomeFragment extends Fragment {
                         Toast.makeText(activity, "Connected to "
                                 + mConnectedDeviceName, Toast.LENGTH_SHORT).show();
                     }
+                    break;
+                case Constants.MESSAGE_BT_STUCK:
+                    showBluetoothStuck(String.valueOf(msg.obj));
                     break;
                 case Constants.MESSAGE_TOAST:
                     if (null != activity) {
@@ -988,11 +992,11 @@ public class HomeFragment extends Fragment {
                     // Bluetooth is now enabled, so set up a chat session
                     setupChat();
                 } else {
-                    // User did not enable Bluetooth or an error occurred
+                    // User did not enable Bluetooth or an error occurred. Don't quit: History,
+                    // profiles and backups work without Bluetooth.
                     Log.d(TAG, "BT not enabled");
-                    Toast.makeText(getActivity(), R.string.bt_not_enabled_leaving,
-                            Toast.LENGTH_SHORT).show();
-                    getActivity().finish();
+                    BtLog.log("enable request returned without Bluetooth on (result " + resultCode + ")");
+                    showBluetoothStuck("Bluetooth was not turned on");
                 }
         }
     }
@@ -1012,6 +1016,21 @@ public class HomeFragment extends Fragment {
         // Attempt to connect to the device
         if (mChatService != null)
             mChatService.connect(device);
+    }
+
+    /**
+     * The Bluetooth stack on the tablet sometimes hangs; an app can't reset it, only a restart of
+     * the tablet helps. Say so instead of leaving buttons that silently do nothing.
+     */
+    private void showBluetoothStuck(String what) {
+        if (getContext() == null) return;
+        new AlertDialog.Builder(requireContext())
+                .setTitle("Bluetooth problem")
+                .setMessage(what + ".\n\nIf Bluetooth can't be switched on in the Android settings either, "
+                        + "the Bluetooth system of the tablet is stuck: restart the tablet.\n\n"
+                        + "Details are in Settings \u2192 Bluetooth log.")
+                .setPositiveButton("OK", null)
+                .show();
     }
 
     private void stopAndSummarizeExercise() {

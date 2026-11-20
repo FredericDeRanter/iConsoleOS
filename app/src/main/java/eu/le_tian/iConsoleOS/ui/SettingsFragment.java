@@ -3,7 +3,12 @@ package eu.le_tian.iConsoleOS.ui;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.graphics.Typeface;
+import android.text.TextUtils;
 import android.text.format.Formatter;
+import android.util.TypedValue;
+import android.widget.ScrollView;
+import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -11,9 +16,12 @@ import androidx.appcompat.app.AlertDialog;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
+import eu.le_tian.iConsoleOS.communication.BtLog;
 import eu.le_tian.iConsoleOS.data.BackupFiles;
 import eu.le_tian.iConsoleOS.data.DatabaseBackup;
 import eu.le_tian.iConsoleOS.data.IConsoleRepository;
@@ -69,8 +77,30 @@ public class SettingsFragment extends Fragment {
         binding.importDbBtn.setOnClickListener(v -> {
             importDatabase();
         });
+
+        binding.btLogBtn.setOnClickListener(v -> showBluetoothLog());
     }
 
+
+    /** Last part of the persistent Bluetooth/ANT+ log, newest at the top. */
+    private void showBluetoothLog() {
+        List<String> lines = BtLog.tail(400);
+        Collections.reverse(lines);
+        TextView text = new TextView(requireContext());
+        text.setTypeface(Typeface.MONOSPACE);
+        text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        text.setTextIsSelectable(true);
+        int pad = (int) (12 * getResources().getDisplayMetrics().density);
+        text.setPadding(pad, pad, pad, pad);
+        text.setText(lines.isEmpty() ? "Nothing logged yet." : TextUtils.join("\n", lines));
+        ScrollView scroll = new ScrollView(requireContext());
+        scroll.addView(text);
+        new AlertDialog.Builder(requireContext())
+                .setTitle("Bluetooth log (newest first)")
+                .setView(scroll)
+                .setPositiveButton("Close", null)
+                .show();
+    }
 
     /** Asks where to save, then {@link #runBackup}. */
     private final ActivityResultLauncher<String> createBackupDocument = registerForActivityResult(

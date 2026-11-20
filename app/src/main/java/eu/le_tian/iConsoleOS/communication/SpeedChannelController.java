@@ -163,6 +163,7 @@ public class SpeedChannelController {
         public void onChannelDeath() {
             // Display channel death message when channel dies
             Log.e(TAG, "Channel Death");
+            BtLog.log("ANT speed channel died");
         }
 
         @Override
