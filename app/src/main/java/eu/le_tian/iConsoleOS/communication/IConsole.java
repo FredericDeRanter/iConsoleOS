@@ -8,6 +8,7 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.concurrent.TimeoutException;
+import java.util.function.LongSupplier;
 
 import androidx.annotation.Nullable;
 
@@ -50,13 +51,25 @@ public class IConsole {
     private final OutputStream mOutputStream;
     private final DataListener mDataListener;
     private final DebugListener mDebugListener;
+    private final LongSupplier mClock;
 
     IConsole(InputStream inputStream, OutputStream outputStream,
              @Nullable DataListener dataListener, @Nullable DebugListener debugListener) {
+        this(inputStream, outputStream, dataListener, debugListener, System::currentTimeMillis);
+    }
+
+    /**
+     * @param clock source of the current time in milliseconds; unit tests pass a fake clock
+     *              so the send-throttle and ack-timeout logic can be tested without sleeping.
+     */
+    IConsole(InputStream inputStream, OutputStream outputStream,
+             @Nullable DataListener dataListener, @Nullable DebugListener debugListener,
+             LongSupplier clock) {
         this.mInputStream = inputStream;
         this.mOutputStream = outputStream;
         this.mDataListener = dataListener;
         this.mDebugListener = debugListener;
+        this.mClock = clock;
     }
 
     public class Data implements java.io.Serializable {
@@ -98,11 +111,10 @@ public class IConsole {
             if (day > 0)
                 b.append(String.format(Locale.US, "%02d:", day));
             hour = (mTime % (60 * 60 * 24)) / 60 / 60;
-            if (hour > 0)
-                if (day > 0)
-                    b.append(String.format(Locale.US, "%02d:", hour));
-                else
-                    b.append(String.format(Locale.US, "%d:", hour));
+            if (day > 0)
+                b.append(String.format(Locale.US, "%02d:", hour)); // always show hours once days are shown
+            else if (hour > 0)
+                b.append(String.format(Locale.US, "%d:", hour));
             min = (mTime % (60 * 60)) / 60;
             sec = mTime % 60;
             b.append(String.format(Locale.US, "%02d:%02d", min, sec));
@@ -150,7 +162,7 @@ public class IConsole {
     }
 
     private boolean send(byte[] packet, byte expect, int plen) throws IOException {
-        long now = System.currentTimeMillis();
+        long now = mClock.getAsLong();
 
         if ((now - mTimesent) < ((mCurrentState == State.READ) ? 500 : 200)) {
             return false;
@@ -171,7 +183,7 @@ public class IConsole {
             mDebugListener.onWrite(packet);
         //Log.d(TAG, "sent: " + byteArrayToHex(packet));
 
-        mTimesent = System.currentTimeMillis();
+        mTimesent = mClock.getAsLong();
         mExpectPacket = packet.clone();
         mExpectPacket[1] = expect;
         mExpectLen = plen;
@@ -199,7 +211,7 @@ public class IConsole {
         byte[] buffer = new byte[mExpectLen];
         int bytes;
 
-        long now = System.currentTimeMillis();
+        long now = mClock.getAsLong();
 
         if ((now - mTimesent) > 10000) {
             mWaitAck = false;

@@ -25,6 +25,10 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+    testOptions {
+        // android.util.Log etc. return defaults instead of throwing in JVM unit tests
+        unitTests.returnDefaultValues = true
+    }
 }
 
 configurations.configureEach {
