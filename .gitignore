@@ -8,7 +8,11 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 .DS_Store
-/build
+build/
 /captures
 .externalNativeBuild
 .cxx
+/.idea/deviceManager.xml
+
+# Private app-data snapshot (workout DB) - never commit
+drawertest-data.tar
