@@ -25,6 +25,7 @@ import java.io.OutputStream;
 import java.util.UUID;
 
 import eu.le_tian.iConsoleOS.MainActivity;
+import eu.le_tian.iConsoleOS.data.IConsoleRepository;
 import eu.le_tian.iConsoleOS.R;
 
 public class BluetoothChatService extends Service {
@@ -96,8 +97,12 @@ public class BluetoothChatService extends Service {
                 onAdapterStateChanged(prev, state);
             } else if (Intent.ACTION_SCREEN_ON.equals(action)) {
                 BtLog.log("screen on");
+                mMainHandler.removeCallbacks(mScreenOffDisconnect);
             } else if (Intent.ACTION_SCREEN_OFF.equals(action)) {
                 BtLog.log("screen off, connection " + stateName(mState));
+                mMainHandler.removeCallbacks(mScreenOffDisconnect);
+                if (mState == STATE_CONNECTED && !IConsoleRepository.isRecording())
+                    mMainHandler.postDelayed(mScreenOffDisconnect, SCREEN_OFF_GRACE_MS);
             }
         }
     };
@@ -118,6 +123,50 @@ public class BluetoothChatService extends Service {
         Handler h = mHandler;
         if (h != null)
             h.obtainMessage(Constants.MESSAGE_BT_STUCK, what).sendToTarget();
+    }
+
+    // ------------------------------------------------------------------ idle disconnect
+    // The tablet's Bluetooth stack hangs after long idle periods with the bike left connected
+    // (pinging every 200 ms, ANT+ broadcasting). So don't stay connected when nobody rides.
+
+    private static final long IDLE_CHECK_EVERY_MS = 30_000;
+    /** Screen off without a workout for this long: disconnect. */
+    private static final long SCREEN_OFF_GRACE_MS = 2 * 60_000;
+    private final IdlePolicy mIdle = new IdlePolicy();
+    private final Runnable mIdleCheck = this::checkIdle;
+    private final Runnable mScreenOffDisconnect = this::screenOffDisconnect;
+
+    private void startIdleChecks() {
+        mIdle.reset(System.currentTimeMillis());
+        mMainHandler.removeCallbacks(mIdleCheck);
+        mMainHandler.postDelayed(mIdleCheck, IDLE_CHECK_EVERY_MS);
+    }
+
+    private void checkIdle() {
+        if (mState != STATE_CONNECTED)
+            return;
+        int minutes = BtSettings.idleMinutes(this);
+        long idleMs = mIdle.idleMs(System.currentTimeMillis());
+        if (!IdlePolicy.isIdle(idleMs, minutes)) {
+            mMainHandler.postDelayed(mIdleCheck, IDLE_CHECK_EVERY_MS);
+            return;
+        }
+        String reason = "no activity for " + minutes + " min";
+        Handler h = mHandler;
+        if (IConsoleRepository.isRecording() && h != null) {
+            // A workout left running: let the UI stop and summarize it, then disconnect.
+            BtLog.log("auto-stop of a workout left running: " + reason);
+            h.obtainMessage(Constants.MESSAGE_AUTO_STOP).sendToTarget();
+            mMainHandler.postDelayed(() -> stopBT("auto-stop, " + reason), 3000);
+        } else {
+            stopBT(reason);
+        }
+        toast("Bike disconnected: " + reason);
+    }
+
+    private void screenOffDisconnect() {
+        if (mState == STATE_CONNECTED && !IConsoleRepository.isRecording())
+            stopBT("screen off for " + SCREEN_OFF_GRACE_MS / 60_000 + " min without a workout");
     }
 
     static String adapterStateName(int state) {
@@ -142,17 +191,20 @@ public class BluetoothChatService extends Service {
 
     public boolean startIConsole() {
         BtLog.log("workout start");
+        mIdle.onUserCommand(System.currentTimeMillis());
         ConnectedThread t = mConnectedThread;
         return t != null && t.startIConsole();
     }
 
     public boolean stopIConsole() {
         BtLog.log("workout stop");
+        mIdle.onUserCommand(System.currentTimeMillis());
         ConnectedThread t = mConnectedThread;
         return t != null && t.stopIConsole();
     }
 
     public boolean setLevel(int level) {
+        mIdle.onUserCommand(System.currentTimeMillis());
         ConnectedThread t = mConnectedThread;
         return t != null && t.setLevel(level);
     }
@@ -251,6 +303,8 @@ public class BluetoothChatService extends Service {
         stopBT();
         BtLog.log("Bluetooth service stopped");
         mMainHandler.removeCallbacks(mStuckCheck);
+        mMainHandler.removeCallbacks(mIdleCheck);
+        mMainHandler.removeCallbacks(mScreenOffDisconnect);
         try {
             unregisterReceiver(mSystemReceiver);
         } catch (IllegalArgumentException e) {
@@ -332,6 +386,7 @@ public class BluetoothChatService extends Service {
         // Start the thread to manage the connection and perform transmissions
         mConnectedThread = new ConnectedThread(socket);
         mConnectedThread.start();
+        mMainHandler.post(this::startIdleChecks);
         // Send the name of the connected device back to the UI Activity
         Handler h = mHandler;
         if (h != null) {
@@ -357,6 +412,8 @@ public class BluetoothChatService extends Service {
         Log.d(TAG, "stopBT");
         if (mConnectThread != null || mConnectedThread != null)
             BtLog.log("disconnect: " + reason);
+        mMainHandler.removeCallbacks(mIdleCheck);
+        mMainHandler.removeCallbacks(mScreenOffDisconnect);
         // Cancel the persistent notification.
         mNM.cancel(NOTIFICATION);
 
@@ -540,6 +597,7 @@ public class BluetoothChatService extends Service {
                 public void onData(IConsole.Data data) {
                     //Log.i(TAG, "mConnectedThread: onData");
                     // Share the sent message back to the UI Activity
+                    mIdle.onData(data.mRPM, data.mSpeed10, System.currentTimeMillis());
                     Handler h = mHandler;
                     if (h != null)
                         h.obtainMessage(Constants.MESSAGE_DATA, -1, -1, data).sendToTarget();

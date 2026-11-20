@@ -44,6 +44,7 @@ import java.util.Objects;
 
 import eu.le_tian.iConsoleOS.communication.BluetoothChatService;
 import eu.le_tian.iConsoleOS.communication.BtLog;
+import eu.le_tian.iConsoleOS.communication.BtSettings;
 import eu.le_tian.iConsoleOS.communication.ChannelService;
 import eu.le_tian.iConsoleOS.communication.Constants;
 import eu.le_tian.iConsoleOS.DeviceListActivity;
@@ -128,6 +129,7 @@ public class HomeFragment extends Fragment {
             switch (msg.what) {
                 case Constants.MESSAGE_STATE_CHANGE:
                     updateConnectionState(msg.arg1);
+                    applyAntBroadcast();
                     break;
                 case Constants.MESSAGE_DATA:
                     if (!(msg.obj instanceof IConsole.Data))
@@ -148,9 +150,11 @@ public class HomeFragment extends Fragment {
                             Log.d(TAG, "pause continued: " + stopPause);
                         }
                     } else {
-                        mChannelService.setSpeed(data.mSpeed10 / 10.0);
-                        mChannelService.setPower(data.mPower10 / 10);
-                        mChannelService.setCadence(data.mRPM);
+                        if (mChannelService != null) { // null until the ANT+ service is bound
+                            mChannelService.setSpeed(data.mSpeed10 / 10.0);
+                            mChannelService.setPower(data.mPower10 / 10);
+                            mChannelService.setCadence(data.mRPM);
+                        }
                         binding.Speed.setText(String.format("% 3.1f", data.mSpeed10 / 10.0));
                         binding.Power.setText(String.format("% 3.1f", data.mPower10 / 10.0));
                         binding.RPM.setText(String.format("%d", data.mRPM));
@@ -184,6 +188,11 @@ public class HomeFragment extends Fragment {
                         Toast.makeText(activity, "Connected to "
                                 + mConnectedDeviceName, Toast.LENGTH_SHORT).show();
                     }
+                    break;
+                case Constants.MESSAGE_AUTO_STOP:
+                    // Bike idle with a workout still running (forgotten): finish it properly.
+                    if (runningExercise)
+                        stopAndSummarizeExercise();
                     break;
                 case Constants.MESSAGE_BT_STUCK:
                     showBluetoothStuck(String.valueOf(msg.obj));
@@ -386,6 +395,7 @@ public class HomeFragment extends Fragment {
             Log.v(TAG, "mChannelServiceConnection.onServiceConnected...");
 
             mChannelService = (ChannelService.ChannelServiceComm) serviceBinder;
+            applyAntBroadcast();
 
 
             Log.v(TAG, "...mChannelServiceConnection.onServiceConnected");
@@ -463,6 +473,7 @@ public class HomeFragment extends Fragment {
                 updateConnectionState(mChatService.getState());
             }
         }
+        applyAntBroadcast(); // the setting may have changed in Settings
     }
 
     @Override
@@ -1016,6 +1027,18 @@ public class HomeFragment extends Fragment {
         // Attempt to connect to the device
         if (mChatService != null)
             mChatService.connect(device);
+    }
+
+    /**
+     * ANT+ (power/speed for the watch) only while the bike is connected and the setting allows it.
+     * Before, the channels were open whenever the app ran, also idle for hours.
+     */
+    private void applyAntBroadcast() {
+        Context context = getContext();
+        if (mChannelService == null || context == null)
+            return;
+        boolean connected = mChatService != null && mChatService.getState() == BluetoothChatService.STATE_CONNECTED;
+        mChannelService.setBroadcasting(connected && BtSettings.antBroadcast(context));
     }
 
     /**

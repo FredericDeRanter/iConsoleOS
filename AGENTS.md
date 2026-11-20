@@ -92,8 +92,16 @@ MainActivity ── starts ──> BluetoothChatService (Service)
   changing any of it, because the user can only verify it on the bike.
 - `BluetoothChatService.java` is a started+bound `Service` (adapted from Google's BluetoothChat sample).
   It owns the connect/connected threads and posts to a UI `Handler` with the `Constants.MESSAGE_*` codes.
-- `ChannelService.java` + `PowerChannelController` / `SpeedChannelController` handle the ANT+
-  channels through `com.dsi.ant`.
+- `ChannelService.java` + `PowerChannelController` / `SpeedChannelController` *broadcast* the bike's
+  power (ANT+ device type 0x0B) and speed (0x7B) as an ANT+ master, so a Garmin watch can pair with
+  the tablet. The tablet has built-in ANT+ on the same Qualcomm chip as Bluetooth. Channels are only
+  open while the bike is connected and Settings allows it (`BtSettings`).
+- Bluetooth health (the tablet's Bluetooth stack hangs when it is left connected and idle):
+  `BtLog` is a persistent event log in `files/bt-log*.txt`
+  (`adb exec-out run-as eu.le_tian.iConsoleOS cat files/bt-log.1.txt files/bt-log.txt`), also
+  shown in Settings. The service disconnects after `BtSettings.idleMinutes` without pedalling or
+  commands (and stops a forgotten workout), or after 2 min with the screen off and no workout.
+  `IConsole` drops the link after 3 unanswered packets. A stuck adapter shows "restart the tablet".
 - `app/src/main/java/com/dsi/ant/channel/PredefinedNetwork.java` deliberately **shadows** a class
   from the ANT jar (from the original upstream project). Don't delete or move it.
 

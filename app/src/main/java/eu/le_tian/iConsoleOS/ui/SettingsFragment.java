@@ -7,6 +7,8 @@ import android.graphics.Typeface;
 import android.text.TextUtils;
 import android.text.format.Formatter;
 import android.util.TypedValue;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -22,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 
 import eu.le_tian.iConsoleOS.communication.BtLog;
+import eu.le_tian.iConsoleOS.communication.BtSettings;
 import eu.le_tian.iConsoleOS.data.BackupFiles;
 import eu.le_tian.iConsoleOS.data.DatabaseBackup;
 import eu.le_tian.iConsoleOS.data.IConsoleRepository;
@@ -79,8 +82,39 @@ public class SettingsFragment extends Fragment {
         });
 
         binding.btLogBtn.setOnClickListener(v -> showBluetoothLog());
+        setupBluetoothSettings();
     }
 
+
+    private void setupBluetoothSettings() {
+        Context c = requireContext();
+        binding.antBroadcastSwitch.setChecked(BtSettings.antBroadcast(c));
+        binding.antBroadcastSwitch.setOnCheckedChangeListener((b, on) -> BtSettings.setAntBroadcast(c, on));
+
+        int[] choices = BtSettings.IDLE_CHOICES;
+        String[] labels = new String[choices.length];
+        int selected = 0;
+        int current = BtSettings.idleMinutes(c);
+        for (int i = 0; i < choices.length; i++) {
+            labels[i] = choices[i] == 0 ? "never" : choices[i] + " minutes";
+            if (choices[i] == current) selected = i;
+        }
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(c, android.R.layout.simple_spinner_item, labels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        binding.idleDisconnectSpinner.setAdapter(adapter);
+        binding.idleDisconnectSpinner.setSelection(selected, false);
+        binding.idleDisconnectSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (choices[position] != BtSettings.idleMinutes(c))
+                    BtSettings.setIdleMinutes(c, choices[position]);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+    }
 
     /** Last part of the persistent Bluetooth/ANT+ log, newest at the top. */
     private void showBluetoothLog() {

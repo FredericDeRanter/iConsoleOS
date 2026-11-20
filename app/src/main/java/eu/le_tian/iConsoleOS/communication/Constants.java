@@ -15,6 +15,8 @@ public interface Constants {
     public static final int MESSAGE_DATA = 6;
     /** Bluetooth adapter stuck or failed to turn on; obj = description. */
     public static final int MESSAGE_BT_STUCK = 7;
+    /** The bike was idle with a workout still running: stop and summarize it. */
+    public static final int MESSAGE_AUTO_STOP = 8;
 
     // Key names received from the BluetoothChatService Handler
     public static final String DEVICE_NAME = "device_name";

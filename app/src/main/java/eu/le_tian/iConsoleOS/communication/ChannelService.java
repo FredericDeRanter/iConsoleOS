@@ -27,6 +27,8 @@ public class ChannelService extends Service {
     private AntService mAntRadioService = null;
     private AntChannelProvider mAntChannelProvider = null;
     private boolean mAllowAddChannel = false;
+    /** Only broadcast while the bike is connected (and the setting allows it), not all the time. */
+    private boolean mBroadcastWanted = false;
     PowerChannelController powerChannelController = null;
     SpeedChannelController speedChannelController = null;
 
@@ -55,6 +57,7 @@ public class ChannelService extends Service {
                     // If no channels available AND legacy interface is not in use, disallow adding channels
                     mAllowAddChannel = false;
                 }
+                openIfWanted();
 
 
             } catch (RemoteException e) {
@@ -102,8 +105,34 @@ public class ChannelService extends Service {
         /**
          * Closes all channels currently added.
          */
+        /** Open the ANT+ channels when {@code on} and the radio allows it, close them otherwise. */
+        public void setBroadcasting(boolean on) {
+            ChannelService.this.setBroadcasting(on);
+        }
+
         void clearAllChannels() {
             closeAllChannels();
+        }
+    }
+
+    private void setBroadcasting(boolean on) {
+        if (on == mBroadcastWanted)
+            return;
+        mBroadcastWanted = on;
+        BtLog.log("ANT+ broadcast " + (on ? "wanted" : "not wanted"));
+        if (on)
+            openIfWanted();
+        else
+            closeAllChannels();
+    }
+
+    private void openIfWanted() {
+        if (!mBroadcastWanted || !mAllowAddChannel || powerChannelController != null)
+            return;
+        try {
+            openAllChannels();
+        } catch (ChannelNotAvailableException e) {
+            BtLog.log("ANT channels not available: " + e.getMessage());
         }
     }
 
@@ -184,11 +213,7 @@ public class ChannelService extends Service {
                     if (numChannels > 0 || legacyInterfaceInUse) {
                         mAllowAddChannel = true;
                         update = true;
-                        try {
-                            openAllChannels();
-                        } catch (ChannelNotAvailableException exception) {
-                            Log.e(TAG, "Channel not available!!");
-                        }
+                        openIfWanted();
                     }
                 }
             }
