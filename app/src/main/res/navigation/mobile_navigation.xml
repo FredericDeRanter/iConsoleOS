@@ -24,6 +24,12 @@
         tools:layout="@layout/fragment_exerciseprofile" />
 
     <fragment
+        android:id="@+id/nav_analytics"
+        android:name="eu.le_tian.iConsoleOS.ui.analytics.AnalyticsFragment"
+        android:label="Progress Graph"
+        tools:layout="@layout/fragment_analytics" />
+
+    <fragment
         android:id="@+id/nav_tools"
         android:name="eu.le_tian.iConsoleOS.ui.HistoryFragment"
         android:label="@string/menu_tools"

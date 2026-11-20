@@ -7,13 +7,14 @@ import androidx.annotation.NonNull;
 import androidx.room.Database;
 import androidx.room.Room;
 import androidx.room.RoomDatabase;
+import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import java.io.File;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-@Database(entities = {User.class, Settings.class, Exercise.class, ExerciseData.class, ExerciseProfile.class, ExerciseProfileData.class}, version = 5)
+@Database(entities = {User.class, Settings.class, Exercise.class, ExerciseData.class, ExerciseProfile.class, ExerciseProfileData.class}, version = 6)
 public abstract class IConsoleDatabase extends RoomDatabase {
     public abstract UserDao userDao();
 
@@ -33,12 +34,31 @@ public abstract class IConsoleDatabase extends RoomDatabase {
     private static final int NUMBER_OF_THREADS = 4;
     static final ExecutorService databaseWriteExecutor = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
 
+    static final Migration MIGRATION_5_6 = new Migration(5, 6) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN summarized INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN totalDuration INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN totalDistance INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN totalCalories INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN avgPower INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN maxPower INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN avgSpeed INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN maxSpeed INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN avgHR INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN maxHR INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN avgRPM INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN maxRPM INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
     static IConsoleDatabase getDatabase(final Context context) {
         if (INSTANCE == null) {
             synchronized (IConsoleDatabase.class) {
                 if (INSTANCE == null) {
                     Log.v(TAG, "init db");
                     INSTANCE = Room.databaseBuilder(context.getApplicationContext(), IConsoleDatabase.class, "IConsoleDB")
+                            .addMigrations(MIGRATION_5_6)
                             .fallbackToDestructiveMigration()
                             .addCallback(rdbc)
                             .build();
@@ -121,7 +141,7 @@ public abstract class IConsoleDatabase extends RoomDatabase {
         });
     }
 
-    private static RoomDatabase.Callback rdbc = new RoomDatabase.Callback() {
+    private static Callback rdbc = new Callback() {
         @Override
         public void onCreate(@NonNull SupportSQLiteDatabase db) {
             super.onCreate(db);

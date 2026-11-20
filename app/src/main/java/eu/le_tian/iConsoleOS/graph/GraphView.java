@@ -174,6 +174,21 @@ public class GraphView extends View {
         }
     }
 
+    public void resetToStandardSettings() {
+        setxAxisExtensionPerTime(300); // 5 minutes extra per time
+        setxAxisInterval(300); // grid on X-axis every 5 minutes
+        setxAxisMax(1200); // 20 minutes to start
+        setyAxisMax(32);
+        setFutureLevelChange(0);
+        if (pointsDone != null) {
+            pointsDone.clear();
+        } else {
+            pointsDone = new ArrayList<>();
+        }
+        checkXaxisMaxAll();
+        invalidate();
+    }
+
     /*public int getGridDimension() {
         return gridDimension;
     }

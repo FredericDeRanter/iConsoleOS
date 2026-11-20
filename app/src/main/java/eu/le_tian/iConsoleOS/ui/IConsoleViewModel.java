@@ -3,6 +3,7 @@ package eu.le_tian.iConsoleOS.ui;
 import android.app.Application;
 import android.content.Context;
 import android.graphics.Point;
+import android.text.format.Formatter;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -266,6 +267,14 @@ public class IConsoleViewModel extends AndroidViewModel {
         return mRepository.getExerciseDataNotLive(exerciseID);
     }
 
+    Future<Exercise> summarizeAndCleanExercise(long exerciseID) {
+        return mRepository.summarizeAndCleanExercise(exerciseID);
+    }
+
+    Future<Integer> summarizeAllUnsummarizedExercises() {
+        return mRepository.summarizeAllUnsummarizedExercises();
+    }
+
     void writeExercisesToCSV(Long userID) {
 
         //TODO add field to only export 1 exercise or only add the ones not exported
@@ -284,9 +293,15 @@ public class IConsoleViewModel extends AndroidViewModel {
                 Future<List<ExerciseData>> exerciseDataFuture = getExerciseData(tempEx.getExerciseID());
                 //Create a List of all the data
                 List<ExerciseData> exerciseDataList = exerciseDataFuture.get();
-                for (ExerciseData exerciseData : exerciseDataList) {
-                    List<String> tempArray = new ArrayList<String>(Arrays.asList(Long.toString(tempEx.getExerciseID()), tempEx.getExProfileName(), sdf.format(tempEx.getExStartDateTime()), Long.toString(tempEx.getUserParentID()), Integer.toString(exerciseData.getExCalories()),
-                            Integer.toString(exerciseData.getExDistance()), Integer.toString(exerciseData.getExHR()), Integer.toString(exerciseData.getExPower()), Integer.toString(exerciseData.getExRPM()), Integer.toString(exerciseData.getExSpeed()), Long.toString(exerciseData.getExTimestamp())));
+                if (exerciseDataList != null && !exerciseDataList.isEmpty()) {
+                    for (ExerciseData exerciseData : exerciseDataList) {
+                        List<String> tempArray = new ArrayList<String>(Arrays.asList(Long.toString(tempEx.getExerciseID()), tempEx.getExProfileName(), sdf.format(tempEx.getExStartDateTime()), Long.toString(tempEx.getUserParentID()), Integer.toString(exerciseData.getExCalories()),
+                                Integer.toString(exerciseData.getExDistance()), Integer.toString(exerciseData.getExHR()), Integer.toString(exerciseData.getExPower()), Integer.toString(exerciseData.getExRPM()), Integer.toString(exerciseData.getExSpeed()), Long.toString(exerciseData.getExTimestamp())));
+                        exercisesToExport.add(tempArray);
+                    }
+                } else if (tempEx.isSummarized()) {
+                    List<String> tempArray = new ArrayList<String>(Arrays.asList(Long.toString(tempEx.getExerciseID()), tempEx.getExProfileName(), sdf.format(tempEx.getExStartDateTime()), Long.toString(tempEx.getUserParentID()), Integer.toString(tempEx.getTotalCalories()),
+                            Integer.toString(tempEx.getTotalDistance()), Integer.toString(tempEx.getAvgHR()), Integer.toString(tempEx.getAvgPower()), Integer.toString(tempEx.getAvgRPM()), Integer.toString(tempEx.getAvgSpeed()), Long.toString(tempEx.getTotalDuration())));
                     exercisesToExport.add(tempArray);
                 }
                 OpenCSVWriter.writeLinesToFile("Exercises.csv", exercisesToExport, ',', appendToFile);
@@ -301,12 +316,35 @@ public class IConsoleViewModel extends AndroidViewModel {
         } catch (Exception e) {
             Log.e(TAG, e.toString());
         }
-
-
-
-
-
     }
 
+    public LiveData<Integer> getExerciseDataCount() {
+        return mRepository.getExerciseDataCount();
+    }
+
+    public LiveData<Integer> getExerciseCount() {
+        return mRepository.getExerciseCount();
+    }
+
+    public LiveData<Integer> getSummarizedExerciseCount() {
+        return mRepository.getSummarizedExerciseCount();
+    }
+
+    public LiveData<Integer> getUnsummarizedExerciseCount() {
+        return mRepository.getUnsummarizedExerciseCount();
+    }
+
+    public LiveData<List<Exercise>> getAllExercisesLive() {
+        return mRepository.getAllExercisesLive();
+    }
+
+    public LiveData<List<Exercise>> getAllExercisesChronologicalLive() {
+        return mRepository.getAllExercisesChronologicalLive();
+    }
+
+    public String getFormattedDatabaseSize() {
+        long bytes = mRepository.getDatabaseSizeInBytes(getApplication());
+        return Formatter.formatShortFileSize(getApplication(), bytes);
+    }
 
 }

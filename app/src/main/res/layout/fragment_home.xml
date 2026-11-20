@@ -337,16 +337,28 @@
         app:layout_constraintEnd_toStartOf="@+id/button_start"
         app:layout_constraintTop_toTopOf="@+id/guideline2" />
 
-    <SeekBar    android:id="@+id/levelSeekbar"
-        android:layout_width="0dp"
-        android:layout_height="60dp"
+
+    <abak.tr.com.boxedverticalseekbar.BoxedVertical
+        android:id="@+id/levelSeekbar"
+        android:layout_width="60dp"
+        android:layout_height="0dp"
+        android:layout_gravity="center"
         android:layout_marginEnd="16dp"
-        android:max="32"
-        android:progress="1"
-        android:rotation="270"
+        android:layout_weight="1"
+        app:backgroundColor="@color/color_background"
+        app:defaultValue="1"
+        app:imageEnabled="false"
         app:layout_constraintBottom_toTopOf="@+id/guideline2"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/guideline5" />
+        app:layout_constraintTop_toTopOf="@+id/guideline5"
+        app:max="32"
+        app:progressColor="@color/design_default_color_secondary"
+        app:step="5"
+        app:textBottomPadding="20"
+        app:textColor="@color/colorRed"
+        app:textEnabled="true"
+        app:textSize="12sp"
+        app:touchDisabled="true" />
 
 
     <TextView

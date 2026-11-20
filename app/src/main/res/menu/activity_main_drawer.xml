@@ -17,6 +17,10 @@
             android:icon="@drawable/ic_menu_slideshow"
             android:title="@string/menu_exerciseProfile" />
         <item
+            android:id="@+id/nav_analytics"
+            android:icon="@drawable/ic_menu_slideshow"
+            android:title="Progress Graph" />
+        <item
             android:id="@+id/nav_tools"
             android:icon="@drawable/ic_menu_manage"
             android:title="@string/menu_tools" />

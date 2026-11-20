@@ -8,7 +8,6 @@ import androidx.room.Query;
 import androidx.room.Update;
 
 import java.util.List;
-import java.util.concurrent.Future;
 
 @Dao
 public interface ExerciseDataDao {
@@ -30,4 +29,9 @@ public interface ExerciseDataDao {
     @Query("SELECT * FROM ExerciseData WHERE exerciseParentID = :exerciseParentID")
     List<ExerciseData> getExerciseDataNotLive(long exerciseParentID);
 
+    @Query("SELECT COUNT(*) FROM ExerciseData")
+    LiveData<Integer> getExerciseDataCount();
+
+    @Query("DELETE FROM ExerciseData WHERE exerciseParentID = :exerciseID")
+    void deleteDataForExercise(long exerciseID);
 }

@@ -159,7 +159,7 @@ public class BluetoothChatService extends Service {
         myIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
         // The PendingIntent to launch our activity if the user selects this notification
-        PendingIntent contentIntent = PendingIntent.getActivity(this, 0, myIntent, 0);
+        PendingIntent contentIntent = PendingIntent.getActivity(this, 0, myIntent, PendingIntent.FLAG_IMMUTABLE);
 
         // Set the info for the views that show in the notification panel.
         Notification notification = new Notification.Builder(this)
@@ -296,6 +296,9 @@ public class BluetoothChatService extends Service {
 
         public void setHandler(Handler handler) {
             mHandler = handler;
+            if (mHandler != null) {
+                mHandler.obtainMessage(Constants.MESSAGE_STATE_CHANGE, mState, -1).sendToTarget();
+            }
         }
     }
 
@@ -328,15 +331,32 @@ public class BluetoothChatService extends Service {
             setName("ConnectThread");
 
             // Always cancel discovery because it will slow down a connection
-            mAdapter.cancelDiscovery();
+            if (mAdapter != null && mAdapter.isDiscovering()) {
+                mAdapter.cancelDiscovery();
+            }
 
             // Make a connection to the BluetoothSocket
             try {
-                // This is a blocking call and will only return on a
-                // successful connection or an exception
                 mmSocket.connect();
             } catch (IOException e) {
-                // Close the socket
+                Log.e(TAG, "Standard socket connect failed, attempting fallback socket...", e);
+                // Fallback method for Android RFCOMM socket reconnect issue
+                try {
+                    BluetoothSocket fallbackSocket = (BluetoothSocket) mmDevice.getClass()
+                            .getMethod("createRfcommSocket", new Class[]{int.class})
+                            .invoke(mmDevice, 1);
+                    if (fallbackSocket != null) {
+                        fallbackSocket.connect();
+                        synchronized (BluetoothChatService.this) {
+                            mConnectThread = null;
+                        }
+                        connected(fallbackSocket, mmDevice);
+                        return;
+                    }
+                } catch (Exception e2) {
+                    Log.e(TAG, "Fallback socket connect failed as well", e2);
+                }
+
                 try {
                     mmSocket.close();
                 } catch (IOException e2) {

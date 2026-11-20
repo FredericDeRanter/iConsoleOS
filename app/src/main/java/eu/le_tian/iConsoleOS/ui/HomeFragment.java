@@ -47,6 +47,7 @@ import eu.le_tian.iConsoleOS.communication.ChannelService;
 import eu.le_tian.iConsoleOS.communication.Constants;
 import eu.le_tian.iConsoleOS.DeviceListActivity;
 import eu.le_tian.iConsoleOS.communication.IConsole;
+import androidx.appcompat.app.AlertDialog;
 import eu.le_tian.iConsoleOS.R;
 import eu.le_tian.iConsoleOS.data.Exercise;
 import eu.le_tian.iConsoleOS.data.ExerciseData;
@@ -125,29 +126,7 @@ public class HomeFragment extends Fragment {
             FragmentActivity activity = getActivity();
             switch (msg.what) {
                 case Constants.MESSAGE_STATE_CHANGE:
-                    switch (msg.arg1) {
-                        case BluetoothChatService.STATE_CONNECTED:
-                            setStatus(getString(R.string.title_connected_to, mConnectedDeviceName));
-                            //mConversationArrayAdapter.clear();
-                            enableButtons(true);
-                            BTState = "Connected";
-                            binding.buttonBluetooth.setBackgroundTintList(res.getColorStateList(R.color.colorlistgreenbutton, null));
-                            break;
-                        case BluetoothChatService.STATE_CONNECTING:
-                            setStatus(R.string.title_connecting);
-                            enableButtons(false);
-                            BTState = "Connecting";
-                            binding.buttonBluetooth.setBackgroundTintList(res.getColorStateList(R.color.colorlistyellowbutton, null));
-                            //mLevel.setEnabled(false);
-                            break;
-                        case BluetoothChatService.STATE_LISTEN:
-                        case BluetoothChatService.STATE_NONE:
-                            setStatus(R.string.title_not_connected);
-                            enableButtons(false);
-                            binding.buttonBluetooth.setBackgroundTintList(res.getColorStateList(R.color.colorlistredbutton, null));
-                            BTState = "Disconnected";
-                            break;
-                    }
+                    updateConnectionState(msg.arg1);
                     break;
                 case Constants.MESSAGE_DATA:
                     if (!(msg.obj instanceof IConsole.Data))
@@ -378,6 +357,9 @@ public class HomeFragment extends Fragment {
             mChatService = ((BluetoothChatService.BluetoothChatServiceI) service).getService();
             ((BluetoothChatService.BluetoothChatServiceI) service).setHandler(mHandler);
             Log.d(TAG, "onServiceConnected()");
+            if (mChatService != null) {
+                updateConnectionState(mChatService.getState());
+            }
         }
 
         public void onServiceDisconnected(ComponentName className) {
@@ -386,7 +368,7 @@ public class HomeFragment extends Fragment {
             // Because it is running in our same process, we should never
             // see this happen.
             mChatService = null;
-
+            updateConnectionState(BluetoothChatService.STATE_NONE);
         }
     };
     private ServiceConnection mChannelServiceConnection = new ServiceConnection() {
@@ -468,6 +450,8 @@ public class HomeFragment extends Fragment {
             if (mChatService.getState() == BluetoothChatService.STATE_NONE) {
                 // Start the Bluetooth chat services
                 mChatService.startBT();
+            } else {
+                updateConnectionState(mChatService.getState());
             }
         }
     }
@@ -482,9 +466,39 @@ public class HomeFragment extends Fragment {
         return root;
     }
 
+    @SuppressLint("DefaultLocale")
+    private void updateConnectionState(int state) {
+        if (binding == null || res == null) return;
+        switch (state) {
+            case BluetoothChatService.STATE_CONNECTED:
+                setStatus(getString(R.string.title_connected_to, mConnectedDeviceName != null ? mConnectedDeviceName : "Device"));
+                enableButtons(true);
+                BTState = "Connected";
+                binding.buttonBluetooth.setBackgroundTintList(res.getColorStateList(R.color.colorlistgreenbutton, null));
+                break;
+            case BluetoothChatService.STATE_CONNECTING:
+                setStatus(R.string.title_connecting);
+                enableButtons(false);
+                BTState = "Connecting";
+                binding.buttonBluetooth.setBackgroundTintList(res.getColorStateList(R.color.colorlistyellowbutton, null));
+                break;
+            case BluetoothChatService.STATE_LISTEN:
+            case BluetoothChatService.STATE_NONE:
+            default:
+                setStatus(R.string.title_not_connected);
+                enableButtons(false);
+                binding.buttonBluetooth.setBackgroundTintList(res.getColorStateList(R.color.colorlistredbutton, null));
+                BTState = "Disconnected";
+                break;
+        }
+    }
+
     @Override
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
         res = getResources();
+        if (mChatService != null) {
+            updateConnectionState(mChatService.getState());
+        }
         ArrayAdapter adapter = new ArrayAdapter(getContext(), R.layout.item_exerciseprofile);
         binding.homeProfileSpinner.setAdapter(adapter);
         IConsoleViewModel.getAllExerciseProfiles().observe(getViewLifecycleOwner(), exerciseProfiles -> adapter.addAll(exerciseProfiles));
@@ -687,20 +701,8 @@ public class HomeFragment extends Fragment {
         binding.buttonStop.setOnClickListener(v -> {
             binding.levelTextView.setText("1");
             binding.levelSeekbar.setValue(1);
-            if (mChatService != null) {
-                if (runningExercise) {
-                    //only stop if running
-                    /**Change start button to show as start */
-                    changeStartButton(1);
-                    mChatService.stopIConsole();
-                    keepScreenOn(false);
-                    /** enable profile selector **/
-                    binding.homeProfileSpinner.setEnabled(true);
-                    runningExercise = false;
-                    /** stop the heart beat*/
-                    binding.heartBeat2.stop();
-
-                }
+            if (runningExercise) {
+                stopAndSummarizeExercise();
             }
         });
 
@@ -708,42 +710,41 @@ public class HomeFragment extends Fragment {
          * normal click BT button will open select device if not connected, else show toast to say long press to disconnect
          */
         binding.buttonBluetooth.setOnClickListener(v -> {
-            /*
-             * Depending on BT state this button should have different actions:
-             * When disconnected: list devices to connect to (big red BT button)
-             * When connected: disconnect from device (smaller green BT button, maybe need to double click to disonnect? so you can't do by accident)
-             * */
-            if (BTState == "Connected") {
+            if (mBluetoothAdapter == null) {
+                mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+            }
+            if (mBluetoothAdapter != null && !mBluetoothAdapter.isEnabled()) {
+                Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
+                return;
+            }
+            if (mChatService == null) {
+                setupChat();
+            }
+
+            int state = mChatService != null ? mChatService.getState() : BluetoothChatService.STATE_NONE;
+            if (state == BluetoothChatService.STATE_CONNECTED) {
                 Snackbar.make(v, "Keep holding to disconnect Bluetooth", Snackbar.LENGTH_LONG)
                         .setAction("Action", null).show();
-/*
-                mLevel.setValue(1);
-                if (mChatService != null)
-                    mChatService.stopBT();
-*/
-            } else { //show list BT devices
+            } else if (state == BluetoothChatService.STATE_CONNECTING) {
+                Snackbar.make(v, "Connecting to device...", Snackbar.LENGTH_SHORT).show();
+            } else {
                 Intent serverIntent = new Intent(getActivity(), DeviceListActivity.class);
                 startActivityForResult(serverIntent, REQUEST_CONNECT_DEVICE_SECURE);
             }
-            //
         });
 
-        /**
-         * Long click BT button to disconnect
-         * */
-        binding.buttonBluetooth.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                //disconnect if connected.
-                Snackbar.make(v, "Bluetooth disconnecting", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
-                if (BTState == "Connected") {
-                    if (mChatService != null)
-                        mChatService.stopBT();
+        binding.buttonBluetooth.setOnLongClickListener(v -> {
+            int state = mChatService != null ? mChatService.getState() : BluetoothChatService.STATE_NONE;
+            if (state == BluetoothChatService.STATE_CONNECTED || state == BluetoothChatService.STATE_CONNECTING) {
+                Snackbar.make(v, "Bluetooth disconnecting...", Snackbar.LENGTH_SHORT).show();
+                if (mChatService != null) {
+                    mChatService.stopBT();
                 }
-                //binding.buttonBluetooth.setBackgroundTintList(ColorStateList.valueOf(res.getColor(R.color.colorYellow)));
-                return true;
+            } else {
+                Snackbar.make(v, "Bluetooth is not connected", Snackbar.LENGTH_SHORT).show();
             }
+            return true;
         });
 
         /**
@@ -1006,6 +1007,110 @@ public class HomeFragment extends Fragment {
         // Attempt to connect to the device
         if (mChatService != null)
             mChatService.connect(device);
+    }
+
+    private void stopAndSummarizeExercise() {
+        if (!runningExercise) return;
+
+        changeStartButton(1);
+        if (mChatService != null) {
+            mChatService.stopIConsole();
+        }
+        keepScreenOn(false);
+        binding.homeProfileSpinner.setEnabled(true);
+        binding.heartBeat2.stop();
+        runningExercise = false;
+
+        if (IConsoleViewModel != null && IConsoleViewModel.runningExercise != null) {
+            long exerciseID = IConsoleViewModel.runningExercise.getExerciseID();
+            new Thread(() -> {
+                try {
+                    Exercise summary = IConsoleViewModel.summarizeAndCleanExercise(exerciseID).get();
+                    if (summary != null && getActivity() != null) {
+                        getActivity().runOnUiThread(() -> showWorkoutSummaryDialog(summary));
+                    } else if (getActivity() != null) {
+                        getActivity().runOnUiThread(this::resetGraphAndUI);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error summarizing exercise: " + e.getMessage());
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(this::resetGraphAndUI);
+                    }
+                }
+            }).start();
+        } else {
+            resetGraphAndUI();
+        }
+    }
+
+    private void showWorkoutSummaryDialog(Exercise summary) {
+        if (getContext() == null) return;
+
+        long durSeconds = summary.getTotalDuration();
+        long mins = durSeconds / 60;
+        long secs = durSeconds % 60;
+        String durationStr = String.format(Locale.US, "%d:%02d", mins, secs);
+
+        double distKm = summary.getTotalDistance() / 10.0;
+        double avgSpeedKm = summary.getAvgSpeed() / 10.0;
+        double maxSpeedKm = summary.getMaxSpeed() / 10.0;
+        double avgPowerW = summary.getAvgPower() / 10.0;
+        double maxPowerW = summary.getMaxPower() / 10.0;
+
+        String message = String.format(Locale.US,
+                "Profile: %s\n\n" +
+                "Duration: %s\n" +
+                "Distance: %.1f km\n" +
+                "Calories: %d kcal\n\n" +
+                "Avg Power: %.1f W  |  Max Power: %.1f W\n" +
+                "Avg Speed: %.1f km/h  |  Max Speed: %.1f km/h\n" +
+                "Avg HR: %d bpm  |  Max HR: %d bpm\n" +
+                "Avg Cadence: %d RPM  |  Max Cadence: %d RPM",
+                summary.getExProfileName(),
+                durationStr,
+                distKm,
+                summary.getTotalCalories(),
+                avgPowerW, maxPowerW,
+                avgSpeedKm, maxSpeedKm,
+                summary.getAvgHR(), summary.getMaxHR(),
+                summary.getAvgRPM(), summary.getMaxRPM()
+        );
+
+        new AlertDialog.Builder(requireContext())
+                .setTitle("Workout Complete!")
+                .setMessage(message)
+                .setPositiveButton("OK", null)
+                .setOnDismissListener(dialog -> resetGraphAndUI())
+                .show();
+    }
+
+    private void resetGraphAndUI() {
+        if (getActivity() == null || binding == null) return;
+
+        runningIndex = 0;
+        extraLevel = 0;
+        paused = false;
+        startPause = 0;
+        stopPause = 0;
+        secondsTotalPaused = 0;
+
+        if (IConsoleViewModel != null && IConsoleViewModel.timeStampsAndLevelsDone != null) {
+            IConsoleViewModel.timeStampsAndLevelsDone.clear();
+        }
+
+        binding.levelTextView.setText("1");
+        binding.levelSeekbar.setValue(1);
+
+        binding.Speed.setText(String.format(Locale.US, "% 3.1f", 0.0));
+        binding.Power.setText(String.format(Locale.US, "% 3.1f", 0.0));
+        binding.RPM.setText(String.format(Locale.US, "%d", 0));
+        binding.Distance.setText(String.format(Locale.US, "% 3.1f", 0.0));
+        binding.Calories.setText(String.format(Locale.US, "% 3d", 0));
+        binding.Heart.setText(String.format(Locale.US, "%d", 0));
+        binding.heartBeat2.stop();
+
+        SetTimeDisplay(0, selectedDuration);
+        binding.homeGraphView.resetToStandardSettings();
     }
 
 }
