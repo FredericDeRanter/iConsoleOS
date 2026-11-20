@@ -38,6 +38,21 @@ export JAVA_HOME=/home/frederic/opt/android-studio/jbr
 ./gradlew :app:lintDebug              # lint
 ```
 
+- **Never run `connectedAndroidTest` with the tablet plugged in**: it runs on every connected
+  device and uninstalls the app afterwards, which deletes the real workout history. Run
+  instrumented tests on an emulator only, addressed by serial:
+  ```bash
+  ~/Android/Sdk/emulator/emulator -avd Medium_Phone -no-window -no-audio -no-snapshot-save &
+  ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
+  ADB="$HOME/Android/Sdk/platform-tools/adb -s emulator-5554"
+  $ADB install -r app/build/outputs/apk/debug/app-debug.apk
+  $ADB install -r -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+  $ADB shell am instrument -w eu.le_tian.iConsoleOS.test/androidx.test.runner.AndroidJUnitRunner
+  ```
+  `MigrationTest` (androidTest, `data/`) checks every upgrade path to the current version; extend it
+  with each new Migration. `app/schemas/.../5.json` is reconstructed (see the test's Javadoc).
+  The `:boxedverticalseekbar` androidTest template doesn't compile (old support library), so build
+  `:app:` tasks only.
 - The Gradle daemon toolchain is pinned to JetBrains JDK 21 (`gradle/gradle-daemon-jvm.properties`, foojay resolver).
 - Instrumented tests (`connectedAndroidTest`) and anything that needs the bike or ANT+ hardware
   are tested **by the user on a device**. Don't claim a hardware-facing change works because it compiles.

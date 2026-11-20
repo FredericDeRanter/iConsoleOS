@@ -31,6 +31,10 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+    sourceSets {
+        // MigrationTestHelper reads the exported schemas (app/schemas) as test assets
+        androidTest.assets.srcDirs += files("$projectDir/schemas")
+    }
     testOptions {
         // android.util.Log etc. return defaults instead of throwing in JVM unit tests
         unitTests.returnDefaultValues = true
@@ -42,7 +46,6 @@ configurations.configureEach {
 }
 
 dependencies {
-    def room_version = "2.6.1"
     implementation libs.room.runtime
     annotationProcessor libs.room.compiler
     implementation fileTree(dir: 'libs', include: ['*.jar'])
@@ -61,6 +64,13 @@ dependencies {
     implementation project(':android_antlib_4-14-0')
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.room.testing
     androidTestImplementation libs.espresso.core
     implementation libs.recyclerview.selection
+
+    constraints {
+        // room-testing (MigrationTest) needs kotlinx-serialization 1.8.x; the test APK shares the
+        // app's copy, which Navigation would otherwise keep at 1.7.x (AbstractMethodError).
+        implementation('org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.1')
+    }
 }

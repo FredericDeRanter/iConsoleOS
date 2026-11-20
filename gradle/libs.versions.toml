@@ -34,6 +34,7 @@ opencsv = { group = "com.opencsv", name = "opencsv", version.ref = "opencsv" }
 recyclerview-selection = { group = "androidx.recyclerview", name = "recyclerview-selection", version.ref = "recyclerviewSelection" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
 scrollablenumberpicker = { group = "com.github.michaelmuenzer", name = "ScrollableNumberPicker", version.ref = "scrollablenumberpicker" }
 
 [plugins]
