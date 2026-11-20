@@ -3,6 +3,7 @@ package eu.le_tian.iConsoleOS.ui;
 import android.app.Application;
 import android.content.Context;
 import android.graphics.Point;
+import android.net.Uri;
 import android.text.format.Formatter;
 import android.util.Log;
 
@@ -24,12 +25,12 @@ import java.util.ListIterator;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import eu.le_tian.iConsoleOS.CSVclass.OpenCSVWriter;
 import eu.le_tian.iConsoleOS.data.Exercise;
 import eu.le_tian.iConsoleOS.data.ExerciseData;
 import eu.le_tian.iConsoleOS.data.ExerciseProfile;
 import eu.le_tian.iConsoleOS.data.ExerciseProfileData;
 import eu.le_tian.iConsoleOS.data.IConsoleRepository;
+import eu.le_tian.iConsoleOS.data.WorkoutCsv;
 
 public class IConsoleViewModel extends AndroidViewModel {
 
@@ -282,47 +283,9 @@ public class IConsoleViewModel extends AndroidViewModel {
         return mRepository.getCompactedSampleCount();
     }
 
-    void writeExercisesToCSV(Long userID) {
-
-        //TODO add field to only export 1 exercise or only add the ones not exported
-        Future<List<Exercise>> exerciseList = getExercise(userID);
-        List<List<String>> exercisesToExport = new ArrayList<List<String>>();
-
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss Z");
-
-        try {
-            List<Exercise> exercises = exerciseList.get();
-            List<String> titleArray = new ArrayList<String>(Arrays.asList("ExerciseID", "ProfileName", "StartDateTime", "UserID", "Calories", "Distance", "HeartRate", "Power", "RPM", "Speed", "TimeStamp"));
-            exercisesToExport.add(titleArray);
-            boolean appendToFile = false;
-            for (int i = 0; i < exercises.size(); i++) {
-                Exercise tempEx = exercises.get(i);
-                Future<List<ExerciseData>> exerciseDataFuture = getExerciseData(tempEx.getExerciseID());
-                //Create a List of all the data
-                List<ExerciseData> exerciseDataList = exerciseDataFuture.get();
-                if (exerciseDataList != null && !exerciseDataList.isEmpty()) {
-                    for (ExerciseData exerciseData : exerciseDataList) {
-                        List<String> tempArray = new ArrayList<String>(Arrays.asList(Long.toString(tempEx.getExerciseID()), tempEx.getExProfileName(), sdf.format(tempEx.getExStartDateTime()), Long.toString(tempEx.getUserParentID()), Integer.toString(exerciseData.getExCalories()),
-                                Integer.toString(exerciseData.getExDistance()), Integer.toString(exerciseData.getExHR()), Integer.toString(exerciseData.getExPower()), Integer.toString(exerciseData.getExRPM()), Integer.toString(exerciseData.getExSpeed()), Long.toString(exerciseData.getExTimestamp())));
-                        exercisesToExport.add(tempArray);
-                    }
-                } else if (tempEx.isSummarized()) {
-                    List<String> tempArray = new ArrayList<String>(Arrays.asList(Long.toString(tempEx.getExerciseID()), tempEx.getExProfileName(), sdf.format(tempEx.getExStartDateTime()), Long.toString(tempEx.getUserParentID()), Integer.toString(tempEx.getTotalCalories()),
-                            Integer.toString(tempEx.getTotalDistance()), Integer.toString(tempEx.getAvgHR()), Integer.toString(tempEx.getAvgPower()), Integer.toString(tempEx.getAvgRPM()), Integer.toString(tempEx.getAvgSpeed()), Long.toString(tempEx.getTotalDuration())));
-                    exercisesToExport.add(tempArray);
-                }
-                OpenCSVWriter.writeLinesToFile("Exercises.csv", exercisesToExport, ',', appendToFile);
-                exercisesToExport.clear();
-                appendToFile = true;
-            }
-
-        } catch (ExecutionException e) {
-            Log.e(TAG, e.toString());
-        } catch (InterruptedException e) {
-            Log.e(TAG, e.toString());
-        } catch (Exception e) {
-            Log.e(TAG, e.toString());
-        }
+    /** CSV of all workouts of user 1 to a file chosen with the file picker; in the background. */
+    Future<WorkoutCsv.Result> exportCsv(Uri target) {
+        return mRepository.exportCsv(getApplication(), target, 1);
     }
 
     public LiveData<Integer> getExerciseDataCount() {

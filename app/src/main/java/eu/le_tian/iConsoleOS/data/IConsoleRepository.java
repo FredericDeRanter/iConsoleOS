@@ -3,6 +3,7 @@ package eu.le_tian.iConsoleOS.data;
 import android.app.Application;
 import android.content.Context;
 import android.database.Cursor;
+import android.net.Uri;
 import android.util.Log;
 
 import androidx.lifecycle.LiveData;
@@ -10,9 +11,15 @@ import androidx.sqlite.db.SimpleSQLiteQuery;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import java.io.File;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -347,6 +354,25 @@ public class IConsoleRepository {
     public void emptyWall() {
         IConsoleDatabase.databaseWriteExecutor.execute(() -> {
             settingsDao.checkpoint(new SimpleSQLiteQuery("pragma wal_checkpoint(full)"));
+        });
+    }
+
+    /**
+     * Writes all workouts of a user as CSV to a document chosen with the file picker (SAF, no
+     * storage permission). Runs in the background; samples include compacted ones.
+     */
+    public Future<WorkoutCsv.Result> exportCsv(Context context, Uri target, long userID) {
+        Context app = context.getApplicationContext();
+        return IConsoleDatabase.databaseWriteExecutor.submit(() -> {
+            List<Exercise> exercises = exerciseDAO.getExerciseNotLive(userID);
+            try (OutputStream os = app.getContentResolver().openOutputStream(target, "w")) {
+                if (os == null)
+                    throw new IOException("Can't write to the chosen file");
+                Writer w = new BufferedWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8));
+                WorkoutCsv.Result r = WorkoutCsv.write(w, exercises, this::loadAllSamples, TimeZone.getDefault());
+                w.flush();
+                return r;
+            }
         });
     }
 

@@ -1,6 +1,7 @@
 package eu.le_tian.iConsoleOS.ui;
 
 import android.content.res.Resources;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -9,15 +10,21 @@ import android.view.ViewGroup;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Locale;
+import java.util.concurrent.Future;
 import java.util.concurrent.ExecutionException;
 
+import eu.le_tian.iConsoleOS.data.WorkoutCsv;
 import eu.le_tian.iConsoleOS.databinding.FragmentHistoryBinding;
 
 /**
@@ -161,7 +168,45 @@ public class HistoryFragment extends Fragment {
                 "Samples: %,d compacted, %,d not compacted yet", compactedSampleCount, rawSampleCount));
     }
 
+    /** Asks where to save the CSV (no storage permission needed), then {@link #runCsvExport}. */
+    private final ActivityResultLauncher<String> createCsvDocument = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("text/csv"),
+            uri -> {
+                if (uri != null) runCsvExport(uri);
+            });
+
     private void writeExercisesToCSV() {
-        IConsoleViewModel.writeExercisesToCSV((long) 1);
+        String name = "IConsole-export-" + new SimpleDateFormat("yyyyMMdd", Locale.US).format(new Date()) + ".csv";
+        createCsvDocument.launch(name);
+    }
+
+    private void runCsvExport(Uri uri) {
+        binding.exportExerciseBtn.setEnabled(false);
+        Future<WorkoutCsv.Result> export = IConsoleViewModel.exportCsv(uri);
+        new Thread(() -> {
+            String title, message;
+            try {
+                WorkoutCsv.Result r = export.get();
+                title = "Export done";
+                message = String.format(Locale.getDefault(), "%,d workouts, %,d rows written.", r.workouts, r.rows);
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause() != null ? e.getCause() : e;
+                Log.e(TAG, "CSV export failed", cause);
+                title = "Export FAILED";
+                message = String.valueOf(cause.getMessage());
+            } catch (InterruptedException e) {
+                title = "Export interrupted";
+                message = "";
+            }
+            final String t = title, m = message;
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    if (binding == null) return;
+                    binding.exportExerciseBtn.setEnabled(true);
+                    new AlertDialog.Builder(requireContext()).setTitle(t).setMessage(m)
+                            .setPositiveButton("OK", null).show();
+                });
+            }
+        }).start();
     }
 }
