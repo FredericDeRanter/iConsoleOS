@@ -159,6 +159,10 @@ public class IConsoleRepository {
         return future;
     }
 
+    public static boolean isRecording() {
+        return sRecordingExerciseID != -1;
+    }
+
     public static void setRecordingExerciseID(long exerciseID) {
         sRecordingExerciseID = exerciseID;
     }

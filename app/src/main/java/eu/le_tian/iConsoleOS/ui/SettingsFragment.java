@@ -1,6 +1,22 @@
 package eu.le_tian.iConsoleOS.ui;
 
 import android.Manifest;
+import android.content.Context;
+import android.net.Uri;
+import android.text.format.Formatter;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
+
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+
+import eu.le_tian.iConsoleOS.data.BackupFiles;
+import eu.le_tian.iConsoleOS.data.DatabaseBackup;
+import eu.le_tian.iConsoleOS.data.IConsoleRepository;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.FileUtils;
@@ -66,34 +82,59 @@ public class SettingsFragment extends Fragment {
     }
 
 
+    /** Asks where to save, then {@link #runBackup}. */
+    private final ActivityResultLauncher<String> createBackupDocument = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("application/octet-stream"),
+            uri -> {
+                if (uri != null) runBackup(uri);
+            });
+
     void backupDatabase() {
-        int permission = checkSelfPermission(getContext(), Manifest.permission.WRITE_EXTERNAL_STORAGE);
-        if (permission == PackageManager.PERMISSION_GRANTED) {
-            //AppDatabase.getInstance(this).getDatabase().close();
-            IConsoleViewModel.emptyWall();
-            File db = getContext().getDatabasePath("IConsoleDB");
-            //File dbShm = new File(db.getParent(), "my-db-shm");
-            //File dbWal = new File(db.getParent(), "my-db-wal");
-
-            File db2 = new File("/sdcard/", "IConsoleDB");
-            //File dbShm2 = new File(db2.getParent(), "my-db-shm");
-            //File dbWal2 = new File(db2.getParent(), "my-db-wal");
-
-            try {
-                copyFile(db.getPath(), "", db2.getPath());
-                //FileUtils.copyFile(dbShm, dbShm2);
-                //FileUtils.copyFile(dbWal, dbWal2);
-            } catch (Exception e) {
-                Log.e("SAVEDB", e.toString());
-            }
-        } else {
-            Snackbar.make(getView(), "Please allow access to your storage", Snackbar.LENGTH_LONG)
-                    .setAction("Allow", view -> requestPermissions(new String[]{
-                            Manifest.permission.WRITE_EXTERNAL_STORAGE
-                    }, 0)).show();
-            //requestPermissions(new String[]{ Manifest.permission.WRITE_EXTERNAL_STORAGE }, 0);
-
+        if (IConsoleRepository.isRecording()) {
+            Snackbar.make(requireView(), "Stop the workout before making a backup", Snackbar.LENGTH_LONG).show();
+            return;
         }
+        createBackupDocument.launch(BackupFiles.backupFileName(new Date()));
+    }
+
+    private void runBackup(Uri uri) {
+        Context appContext = requireContext().getApplicationContext();
+        binding.exportDbBtn.setEnabled(false);
+        Snackbar.make(requireView(), "Making backup...", Snackbar.LENGTH_SHORT).show();
+        new Thread(() -> {
+            String title;
+            String message;
+            try {
+                DatabaseBackup.BackupResult r = DatabaseBackup.backupTo(appContext, uri);
+                title = "Backup saved";
+                message = describe(appContext, r.info) + (r.verified ? "\n\nChecked: the saved file matches the database."
+                        : "\n\nSaved, but this location doesn't allow reading the file back to check it.");
+            } catch (IOException | RuntimeException e) {
+                Log.e("SAVEDB", "Backup failed", e);
+                title = "Backup FAILED";
+                message = String.valueOf(e.getMessage());
+            }
+            final String t = title, m = message;
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    if (binding == null) return;
+                    binding.exportDbBtn.setEnabled(true);
+                    new AlertDialog.Builder(requireContext())
+                            .setTitle(t)
+                            .setMessage(m)
+                            .setPositiveButton("OK", null)
+                            .show();
+                });
+            }
+        }).start();
+    }
+
+    static String describe(Context context, DatabaseBackup.Info info) {
+        String latest = info.latestStart > 0
+                ? new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(new Date(info.latestStart))
+                : "none";
+        return String.format(Locale.getDefault(), "%,d workouts, latest %s\n%s, database version %d",
+                info.workouts, latest, Formatter.formatShortFileSize(context, info.bytes), info.version);
     }
 
     void importDatabase() {
