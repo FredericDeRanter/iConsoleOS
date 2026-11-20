@@ -40,7 +40,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 import eu.le_tian.iConsoleOS.communication.BluetoothChatService;
 import eu.le_tian.iConsoleOS.communication.BtLog;
@@ -115,6 +114,9 @@ public class HomeFragment extends Fragment {
     private List<Point> timeStampAndLevelProfile = new ArrayList<Point>();
     //private List<Point> timestampAndLevelBusy = new ArrayList<Point>();
     private int extraLevel = 0;
+    /** Level last sent to the bike. The source of truth; the views only show it (they are
+     *  recreated when you come back from another screen). */
+    private int mCurrentLevel = 1;
     private long exerciseIDbusy;
 
     /**
@@ -155,13 +157,15 @@ public class HomeFragment extends Fragment {
                             mChannelService.setPower(data.mPower10 / 10);
                             mChannelService.setCadence(data.mRPM);
                         }
-                        binding.Speed.setText(String.format("% 3.1f", data.mSpeed10 / 10.0));
-                        binding.Power.setText(String.format("% 3.1f", data.mPower10 / 10.0));
-                        binding.RPM.setText(String.format("%d", data.mRPM));
-                        binding.Distance.setText(String.format("% 3.1f", data.mDistance10 / 10.0));
-                        binding.Calories.setText(String.format("% 3d", data.mCalories));
-                        binding.Heart.setText(String.format("%d", data.mHF));
-                        binding.heartBeat2.setDurationBasedOnBPM(data.mHF);
+                        if (binding != null) { // no view while another screen is shown; keep recording
+                            binding.Speed.setText(String.format("% 3.1f", data.mSpeed10 / 10.0));
+                            binding.Power.setText(String.format("% 3.1f", data.mPower10 / 10.0));
+                            binding.RPM.setText(String.format("%d", data.mRPM));
+                            binding.Distance.setText(String.format("% 3.1f", data.mDistance10 / 10.0));
+                            binding.Calories.setText(String.format("% 3d", data.mCalories));
+                            binding.Heart.setText(String.format("%d", data.mHF));
+                            binding.heartBeat2.setDurationBasedOnBPM(data.mHF);
+                        }
                         long timeInExercise = data.mTime - secondsTotalPaused;
                         SetTimeDisplay(timeInExercise, selectedDuration);
                         ExerciseData exerciseData = new ExerciseData(0, data.mPower10, data.mSpeed10, data.mDistance10, data.mCalories, data.mHF, data.mRPM, timeInExercise, IConsoleViewModel.runningExercise.getExerciseID());
@@ -243,7 +247,7 @@ public class HomeFragment extends Fragment {
 
         if (duration == 0 && timePassed > 0) {
             //no duration set, so just need to convert time passed
-            binding.Time.setText(convertLongToString(timePassed));
+            showTime(convertLongToString(timePassed));
             //DONE: add points to IConsoleViewModel.timeStampsAndLevelsDone
             //when selecting any profile, something is added in pointsAll always. That's enough to start drawing the graph (and keep drawing)
             //check previous level in graph, if same as current, do nothing. Else add point to done.
@@ -269,7 +273,7 @@ public class HomeFragment extends Fragment {
 
         } else if (duration > 0 && timePassed == 0) {
             //setting duration, but not running yet
-            binding.Time.setText(convertLongToString(duration));
+            showTime(convertLongToString(duration));
             //not running so clear the timeStampsAndLevelsDone
             IConsoleViewModel.timeStampsAndLevelsDone.clear();
 
@@ -277,7 +281,7 @@ public class HomeFragment extends Fragment {
             //running a profile with duration
 
             long leftTime = duration - timePassed;
-            binding.Time.setText(convertLongToString(leftTime));
+            showTime(convertLongToString(leftTime));
             //set the level according to the profile
             //Should be done: what if no profile data (only duration)?
             //DONE: create level adjuster variable (set with ++,--, + and - button
@@ -336,7 +340,7 @@ public class HomeFragment extends Fragment {
                 //if the exercise is finished running
                 //TODO: decide what to show when exercise is done. Maybe a user setting: if exercise is finished, stop or continue?
                 //exercise is done, but keeps running
-                binding.Time.setText(convertLongToString(timePassed));
+                showTime(convertLongToString(timePassed));
                 //DONE: keep adjusting graph
 
                 //if continue running, add new points to pointsDone. The graph will adjust itself accordingly. (no need to add points to pointAll.
@@ -356,12 +360,25 @@ public class HomeFragment extends Fragment {
             }
         } else if (duration == 0) {
             //no duration and no running exercise. so just set display to 00:00
-            binding.Time.setText(convertLongToString(duration));
+            showTime(convertLongToString(duration));
             //not running so clear the timeStampsAndLevelsDone
             IConsoleViewModel.timeStampsAndLevelsDone.clear();
         }
-        binding.homeGraphView.setPointsDone(IConsoleViewModel.timeStampsAndLevelsDone);
+        if (binding != null)
+            binding.homeGraphView.setPointsDone(IConsoleViewModel.timeStampsAndLevelsDone);
         return false;
+    }
+
+    private void showTime(String text) {
+        if (binding != null)
+            binding.Time.setText(text);
+    }
+
+    private void showLevel(int level) {
+        if (binding != null) {
+            binding.levelTextView.setText(String.valueOf(level));
+            binding.levelSeekbar.setValue(level);
+        }
     }
 
 
@@ -486,6 +503,13 @@ public class HomeFragment extends Fragment {
         return root;
     }
 
+    @Override
+    public void onDestroyView() {
+        // The fragment stays alive on the back stack (and keeps recording); only the views go.
+        binding = null;
+        super.onDestroyView();
+    }
+
     @SuppressLint("DefaultLocale")
     private void updateConnectionState(int state) {
         if (binding == null || res == null) return;
@@ -516,12 +540,27 @@ public class HomeFragment extends Fragment {
     @Override
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
         res = getResources();
+        bindViewListeners();
         if (mChatService != null) {
             updateConnectionState(mChatService.getState());
         }
-        ArrayAdapter adapter = new ArrayAdapter(getContext(), R.layout.item_exerciseprofile);
+        ArrayAdapter<ExerciseProfile> adapter = new ArrayAdapter<>(requireContext(), R.layout.item_exerciseprofile);
         binding.homeProfileSpinner.setAdapter(adapter);
-        IConsoleViewModel.getAllExerciseProfiles().observe(getViewLifecycleOwner(), exerciseProfiles -> adapter.addAll(exerciseProfiles));
+        IConsoleViewModel.getAllExerciseProfiles().observe(getViewLifecycleOwner(), exerciseProfiles -> {
+            // clear first: every emission used to append the whole list again
+            adapter.clear();
+            adapter.addAll(exerciseProfiles);
+            // keep the selected profile (coming back from another screen used to jump to the first)
+            ExerciseProfile selected = IConsoleViewModel.getSelectedExerciseProfile();
+            if (selected != null && binding != null) {
+                for (int i = 0; i < adapter.getCount(); i++) {
+                    if (adapter.getItem(i).getExerciseProfileID() == selected.getExerciseProfileID()) {
+                        binding.homeProfileSpinner.setSelection(i, false);
+                        break;
+                    }
+                }
+            }
+        });
 
         IConsoleViewModel.getAllExerciseProfileDataSelected().observe(getViewLifecycleOwner(), exerciseProfileDataList -> {
             /**
@@ -531,7 +570,12 @@ public class HomeFragment extends Fragment {
              * If no duration and there is data: calculate total time from data and set to time textview, add buttons to change the time.
              * start countdown when press start and make time buttons go away? (or count up when no time is set)
              * */
+            // The profile can't change during a ride; recomputing would clear the graph.
+            if (runningExercise)
+                return;
             ExerciseProfile exerciseProfileSelected = IConsoleViewModel.getSelectedExerciseProfile();
+            if (exerciseProfileSelected == null)
+                return;
             int durationInProfile = exerciseProfileSelected.getDefaultDuration();
             int profileDefaultLevel = exerciseProfileSelected.getStartLevel();
 
@@ -548,7 +592,7 @@ public class HomeFragment extends Fragment {
                 Log.d(TAG, "DataList:" + exerciseProfileDataList.size() + "  no duration ");
             } else {
                 /** no profiledata and no duration: quick start */
-                binding.Time.setText(String.format("%02d:%02d", 0, 0));
+                showTime(String.format("%02d:%02d", 0, 0));
                 selectedDuration = durationInProfile;
                 //DONE: adjust the CreateTimeStampsAndLevels to add the defaultLevel for the quickstartprofile
                 IConsoleViewModel.CreateTimeStampsAndLevels(null, 0, true, profileDefaultLevel);
@@ -571,8 +615,10 @@ public class HomeFragment extends Fragment {
         binding.homeProfileSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (runningExercise)
+                    return; // the spinner is disabled during a ride; ignore programmatic selections
                 /**set the selectedProfileID in viewmodel to trigger a transformer switchmap on the livedata of exerciseProfileData */
-                ExerciseProfile exerciseProfileSelected = (ExerciseProfile) adapter.getItem(position);
+                ExerciseProfile exerciseProfileSelected = adapter.getItem(position);
                 Log.d(TAG, "selected:" + exerciseProfileSelected.getExerciseProfileID() + " : " + exerciseProfileSelected.getExerciseProfileName());
                 /**this updates the livedata in the viewmodel*/
                 assert exerciseProfileSelected != null;
@@ -586,6 +632,19 @@ public class HomeFragment extends Fragment {
             }
         });
 
+        restoreRideState();
+    }
+
+    /** Shows the state of a ride that was running while another screen was shown. */
+    private void restoreRideState() {
+        showLevel(mCurrentLevel);
+        if (!runningExercise || binding == null)
+            return;
+        changeStartButton(paused ? 1 : 2);
+        binding.homeProfileSpinner.setEnabled(false);
+        binding.heartBeat2.start();
+        binding.homeGraphView.setFutureLevelChange(extraLevel);
+        binding.homeGraphView.setPointsDone(IConsoleViewModel.timeStampsAndLevelsDone);
     }
 
     void doBindService() {
@@ -642,7 +701,13 @@ public class HomeFragment extends Fragment {
 
         if (!mIsBound)
             doBindService();
+    }
 
+    /**
+     * Wires the buttons of the current view. Called for every new view (onViewCreated): before,
+     * this ran only once, from setupChat(), so after another screen Home's buttons did nothing.
+     */
+    private void bindViewListeners() {
         /**
          * Start button actions
          * */
@@ -650,6 +715,10 @@ public class HomeFragment extends Fragment {
             //DONE: make a running boolean or state int (0: stopped, 1: running, 2: paused) mchatservice needs to be not null to be able to communicate.
             if (mChatService != null) {
                 if (!runningExercise) {
+                    if (IConsoleViewModel.selectedExerciseProfile == null) {
+                        Snackbar.make(v, "Select a profile first", Snackbar.LENGTH_LONG).show();
+                        return;
+                    }
                     //start running
                     runningExercise = true;
                     mChatService.startIConsole();
@@ -719,8 +788,8 @@ public class HomeFragment extends Fragment {
          * Stop button action
          * */
         binding.buttonStop.setOnClickListener(v -> {
-            binding.levelTextView.setText("1");
-            binding.levelSeekbar.setValue(1);
+            mCurrentLevel = 1;
+            showLevel(1);
             if (runningExercise) {
                 stopAndSummarizeExercise();
             }
@@ -779,31 +848,19 @@ public class HomeFragment extends Fragment {
 
 
         binding.plusButton.setOnClickListener(v -> {
-            int oldvalue = Integer.parseInt(binding.levelTextView.getText().toString());
-            setLevel(oldvalue + 1);
+            setLevel(mCurrentLevel + 1);
         });
 
         binding.plusPlusButton.setOnClickListener(v -> {
-            int oldvalue = Integer.parseInt(binding.levelTextView.getText().toString());
-            setLevel(oldvalue + 5);
+            setLevel(mCurrentLevel + 5);
         });
 
         binding.minButton.setOnClickListener(v -> {
-            int oldvalue = Integer.parseInt(binding.levelTextView.getText().toString());
-            //make sure that the value can't be smaller than 1
-            //if (oldvalue<2) {
-            //    oldvalue = 2;
-            //}
-            setLevel(oldvalue - 1);
+            setLevel(mCurrentLevel - 1);
         });
 
         binding.minMinButton.setOnClickListener(v -> {
-            int oldvalue = Integer.parseInt(binding.levelTextView.getText().toString());
-            //make sure that the value can't be smaller than 1
-            /*if (oldvalue<6) {
-                oldvalue = 6;
-            }*/
-            setLevel(oldvalue - 5);
+            setLevel(mCurrentLevel - 5);
         });
 
         binding.levelSeekbar.setOnBoxedPointsChangeListener(new BoxedVertical.OnValuesChangeListener() {
@@ -811,8 +868,7 @@ public class HomeFragment extends Fragment {
             public void onPointsChanged(BoxedVertical boxedPoints, final int value) {
                 //System.out.println(value);
                 Log.v(TAG, "BoxedVertical Changed Value to " + value);
-                int oldvalue = Integer.parseInt(binding.levelTextView.getText().toString());
-                if (value != oldvalue) {
+                if (value != mCurrentLevel) {
                     setLevel(value);
                 }
             }
@@ -837,6 +893,8 @@ public class HomeFragment extends Fragment {
      * type 3: blinking start/pauze button
      */
     private void changeStartButton(int type) {
+        if (binding == null)
+            return;
         switch (type) {
             case 1:
                 binding.buttonStart.setBackgroundResource(R.drawable.ic_button_start);
@@ -860,8 +918,10 @@ public class HomeFragment extends Fragment {
     private void keepScreenOn(boolean on) {
         //KeyguardManager manager = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
         int flags = WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON;
+        if (getActivity() == null)
+            return;
         if (on) {
-            Objects.requireNonNull(getActivity()).getWindow().addFlags(flags);
+            getActivity().getWindow().addFlags(flags);
         } else {
             getActivity().getWindow().clearFlags(flags);
         }
@@ -881,14 +941,15 @@ public class HomeFragment extends Fragment {
             if (!mChatService.setLevel(newVal)) {
                 Log.e(TAG, "setLevel failed");
             } else {
-                binding.levelTextView.setText(String.valueOf(newVal));
-                binding.levelSeekbar.setValue(newVal);
+                mCurrentLevel = newVal;
+                showLevel(newVal);
                 //check the level in the running profile (if any) and set the extraLevel accordingly
                 if (!timeStampAndLevelProfile.isEmpty()) { //this should never be empty
                     extraLevel = newVal - timeStampAndLevelProfile.get(runningIndex).y;
                     Log.d(TAG, "extraLevel set to " + extraLevel + "| newVal: " + newVal + "| level according to profile:" + timeStampAndLevelProfile.get(runningIndex).y + "| runningIndex: " + runningIndex);
                     //also set it on the graph:
-                    binding.homeGraphView.setFutureLevelChange(extraLevel);
+                    if (binding != null)
+                        binding.homeGraphView.setFutureLevelChange(extraLevel);
                 }
             }
         }
@@ -912,6 +973,8 @@ public class HomeFragment extends Fragment {
     private void enableButtons(boolean enable) {
 
         disableRotation(enable);
+        if (binding == null)
+            return;
         binding.buttonStart.setEnabled(enable);
         binding.buttonStop.setEnabled(enable);
         binding.plusButton.setEnabled(enable);
@@ -920,8 +983,11 @@ public class HomeFragment extends Fragment {
         binding.minMinButton.setEnabled(enable);
         binding.levelSeekbar.setEnabled(enable);
         if (enable) {
-            binding.levelTextView.setText("1");
-            binding.levelSeekbar.setValue(1);
+            // A fresh connection starts at level 1, but during a ride this is also called on every
+            // state refresh (onResume, back from another screen): don't reset the level then.
+            if (!runningExercise)
+                mCurrentLevel = 1;
+            showLevel(mCurrentLevel);
         }
     }
 
@@ -1064,8 +1130,10 @@ public class HomeFragment extends Fragment {
             mChatService.stopIConsole();
         }
         keepScreenOn(false);
-        binding.homeProfileSpinner.setEnabled(true);
-        binding.heartBeat2.stop();
+        if (binding != null) {
+            binding.homeProfileSpinner.setEnabled(true);
+            binding.heartBeat2.stop();
+        }
         runningExercise = false;
 
         if (IConsoleViewModel != null && IConsoleViewModel.runningExercise != null) {
@@ -1132,9 +1200,8 @@ public class HomeFragment extends Fragment {
     }
 
     private void resetGraphAndUI() {
-        if (getActivity() == null || binding == null) return;
-
         runningIndex = 0;
+        mCurrentLevel = 1;
         extraLevel = 0;
         paused = false;
         startPause = 0;
@@ -1144,9 +1211,9 @@ public class HomeFragment extends Fragment {
         if (IConsoleViewModel != null && IConsoleViewModel.timeStampsAndLevelsDone != null) {
             IConsoleViewModel.timeStampsAndLevelsDone.clear();
         }
+        if (getActivity() == null || binding == null) return; // state reset; no view to update
 
-        binding.levelTextView.setText("1");
-        binding.levelSeekbar.setValue(1);
+        showLevel(1);
 
         binding.Speed.setText(String.format(Locale.US, "% 3.1f", 0.0));
         binding.Power.setText(String.format(Locale.US, "% 3.1f", 0.0));
