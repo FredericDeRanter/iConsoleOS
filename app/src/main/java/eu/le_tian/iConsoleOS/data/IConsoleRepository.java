@@ -14,6 +14,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 public class IConsoleRepository {
@@ -23,6 +25,21 @@ public class IConsoleRepository {
      * its own repository instance; a crash resets it, so a crashed workout gets compacted later.
      */
     private static volatile long sRecordingExerciseID = -1;
+    /** Recording started but its Exercise row isn't inserted yet. */
+    private static final long RECORDING_PENDING = -2;
+    /**
+     * One thread for everything a ride writes: the Exercise row, every sample, and the final
+     * summarize + compact. A single thread keeps them in order: samples are stored in the order
+     * they were recorded, they get the exercise ID because its insert ran first, and Stop only
+     * compacts after the last queued sample is stored (with the 4-thread pool, samples could be
+     * reordered or land after the summary).
+     */
+    private static final ExecutorService sRecordingExecutor = Executors.newSingleThreadExecutor();
+
+    /** A ride being recorded; its exercise ID becomes known on the recording thread. */
+    public static final class Recording {
+        volatile long exerciseID = -1;
+    }
     private ExerciseProfileDao exerciseProfileDao;
     private ExerciseProfileDataDao exerciseProfileDataDao;
     private SettingsDao settingsDao;
@@ -38,8 +55,13 @@ public class IConsoleRepository {
     private Long selectedExerciseProfileID;
 
     public IConsoleRepository(Application application) {
+        this(IConsoleDatabase.getDatabase(application));
+    }
+
+    /** For tests: an in-memory database. */
+    IConsoleRepository(IConsoleDatabase database) {
         Log.v(TAG, "init db in repo");
-        db = IConsoleDatabase.getDatabase(application);
+        db = database;
         exerciseProfileDao = db.exerciseProfileDao();
         exerciseProfileDataDao = db.exerciseProfileDataDao();
         settingsDao = db.settingsDao();
@@ -167,11 +189,43 @@ public class IConsoleRepository {
         sRecordingExerciseID = exerciseID;
     }
 
-    public Future<Long> insertExercise(Exercise exercise) {
-        Future<Long> future = IConsoleDatabase.databaseWriteExecutor.submit(() -> {
-            return exerciseDAO.insert(exercise);
+    /**
+     * Starts recording a ride without blocking the caller: the Exercise row is inserted on the
+     * recording thread, before any sample.
+     */
+    public Recording startRecording(Exercise exercise) {
+        Recording recording = new Recording();
+        sRecordingExerciseID = RECORDING_PENDING;
+        sRecordingExecutor.execute(() -> {
+            long id = exerciseDAO.insert(exercise);
+            exercise.setExerciseID(id);
+            recording.exerciseID = id;
+            sRecordingExerciseID = id;
         });
-        return future;
+        return recording;
+    }
+
+    /** Stores one sample of the ride, in order, with the ride's exercise ID. */
+    public void recordSample(Recording recording, ExerciseData sample) {
+        sRecordingExecutor.execute(() -> {
+            if (recording.exerciseID < 0) {
+                Log.e(TAG, "sample dropped: exercise insert failed");
+                return;
+            }
+            sample.setExerciseParentID(recording.exerciseID);
+            exerciseDataDao.insert(sample);
+        });
+    }
+
+    /** Stop: after every queued sample is stored, summarize and compact the ride. */
+    public Future<Exercise> finishRecording(Recording recording) {
+        long stopTime = System.currentTimeMillis();
+        return sRecordingExecutor.submit(() -> {
+            sRecordingExerciseID = -1;
+            if (recording.exerciseID < 0)
+                return null;
+            return compactExercise(recording.exerciseID, stopTime);
+        });
     }
 
     public void updateExercise(Exercise exercise) {
@@ -345,14 +399,6 @@ public class IConsoleRepository {
             }
             return exercise;
         });
-    }
-
-    /** Called when a workout is stopped: summarize it and compact its samples. */
-    public Future<Exercise> finishExercise(long exerciseID) {
-        long stopTime = System.currentTimeMillis();
-        if (sRecordingExerciseID == exerciseID)
-            sRecordingExerciseID = -1;
-        return IConsoleDatabase.databaseWriteExecutor.submit(() -> compactExercise(exerciseID, stopTime));
     }
 
     /**

@@ -243,21 +243,20 @@ public class IConsoleViewModel extends AndroidViewModel {
         mRepository.emptyWall();
     }
 
-    void insertExercise(Exercise exercise) {
-        Future<Long> futureID = mRepository.insertExercise(exercise);
-        try {
-            exercise.setExerciseID(futureID.get());
-        } catch (ExecutionException e) {
-            Log.e(TAG, e.toString());
-        } catch (InterruptedException e) {
-            Log.e(TAG, e.toString());
-        }
+    /** Ride being recorded, or null. */
+    private IConsoleRepository.Recording mRecording;
+
+    /** Start recording a ride. Doesn't block: the row is inserted on the recording thread. */
+    void startExercise(Exercise exercise) {
         runningExercise = exercise;
-        IConsoleRepository.setRecordingExerciseID(exercise.getExerciseID());
+        mRecording = mRepository.startRecording(exercise);
     }
 
+    /** Store one sample of the running ride (its exercise ID is filled in when stored). */
     void insertExerciseData(ExerciseData exerciseData) {
-        mRepository.insertExerciseData(exerciseData);
+        IConsoleRepository.Recording r = mRecording;
+        if (r != null)
+            mRepository.recordSample(r, exerciseData);
     }
 
     Future<List<Exercise>> getExercise(long userID) {
@@ -268,8 +267,11 @@ public class IConsoleViewModel extends AndroidViewModel {
         return mRepository.getExerciseDataNotLive(exerciseID);
     }
 
-    Future<Exercise> finishExercise(long exerciseID) {
-        return mRepository.finishExercise(exerciseID);
+    /** Stop: summarize and compact the ride once all its samples are stored. Null if none. */
+    Future<Exercise> finishExercise() {
+        IConsoleRepository.Recording r = mRecording;
+        mRecording = null;
+        return r != null ? mRepository.finishRecording(r) : null;
     }
 
     Future<Integer> compactAllExercises() {

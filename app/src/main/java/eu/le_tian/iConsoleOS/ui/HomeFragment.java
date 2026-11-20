@@ -168,7 +168,7 @@ public class HomeFragment extends Fragment {
                         }
                         long timeInExercise = data.mTime - secondsTotalPaused;
                         SetTimeDisplay(timeInExercise, selectedDuration);
-                        ExerciseData exerciseData = new ExerciseData(0, data.mPower10, data.mSpeed10, data.mDistance10, data.mCalories, data.mHF, data.mRPM, timeInExercise, IConsoleViewModel.runningExercise.getExerciseID());
+                        ExerciseData exerciseData = new ExerciseData(0, data.mPower10, data.mSpeed10, data.mDistance10, data.mCalories, data.mHF, data.mRPM, timeInExercise, 0 /* parent ID filled in when stored */);
                         IConsoleViewModel.insertExerciseData(exerciseData);
                     }
                     //binding.Time.setText(String.format("%s", data.getTimeStr()));
@@ -739,7 +739,7 @@ public class HomeFragment extends Fragment {
                      * */
                     //TODO: change the user ID to the selected user
                     Exercise exercise = new Exercise(0, new Date().getTime(), 0, IConsoleViewModel.selectedExerciseProfile.getExerciseProfileName(), 1);
-                    IConsoleViewModel.insertExercise(exercise);
+                    IConsoleViewModel.startExercise(exercise);
 
                     /** change to pauze button*/
                     changeStartButton(2);
@@ -1136,11 +1136,11 @@ public class HomeFragment extends Fragment {
         }
         runningExercise = false;
 
-        if (IConsoleViewModel != null && IConsoleViewModel.runningExercise != null) {
-            long exerciseID = IConsoleViewModel.runningExercise.getExerciseID();
+        java.util.concurrent.Future<Exercise> finishing = IConsoleViewModel != null ? IConsoleViewModel.finishExercise() : null;
+        if (finishing != null) {
             new Thread(() -> {
                 try {
-                    Exercise summary = IConsoleViewModel.finishExercise(exerciseID).get();
+                    Exercise summary = finishing.get();
                     if (summary != null && getActivity() != null) {
                         getActivity().runOnUiThread(() -> showWorkoutSummaryDialog(summary));
                     } else if (getActivity() != null) {
