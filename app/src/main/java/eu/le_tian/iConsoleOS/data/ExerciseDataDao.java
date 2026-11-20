@@ -23,10 +23,10 @@ public interface ExerciseDataDao {
     @Query("DELETE FROM ExerciseData")
     void deleteAll();
 
-    @Query("SELECT * FROM ExerciseData WHERE exerciseParentID = :exerciseParentID")
+    @Query("SELECT * FROM ExerciseData WHERE exerciseParentID = :exerciseParentID ORDER BY exerciseDataID")
     LiveData<List<ExerciseData>> getExerciseData(long exerciseParentID);
 
-    @Query("SELECT * FROM ExerciseData WHERE exerciseParentID = :exerciseParentID")
+    @Query("SELECT * FROM ExerciseData WHERE exerciseParentID = :exerciseParentID ORDER BY exerciseDataID")
     List<ExerciseData> getExerciseDataNotLive(long exerciseParentID);
 
     @Query("SELECT COUNT(*) FROM ExerciseData")

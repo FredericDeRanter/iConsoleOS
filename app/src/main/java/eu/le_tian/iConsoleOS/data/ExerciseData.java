@@ -1,9 +1,11 @@
 package eu.le_tian.iConsoleOS.data;
 
 import androidx.room.Entity;
+import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
-@Entity(tableName = "ExerciseData")
+// Index on the parent ID: every per-workout query filters on it (added in DB version 7)
+@Entity(tableName = "ExerciseData", indices = {@Index("exerciseParentID")})
 public class ExerciseData {
     @PrimaryKey(autoGenerate = true)
     private long exerciseDataID;

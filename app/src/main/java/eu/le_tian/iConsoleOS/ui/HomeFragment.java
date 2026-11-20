@@ -133,6 +133,11 @@ public class HomeFragment extends Fragment {
                         return;
                     IConsole.Data data = (IConsole.Data) msg.obj;
 
+                    // The bike can still answer a READ after Stop was pressed. Without this
+                    // guard that sample was stored under the already summarized exercise.
+                    if (!runningExercise || IConsoleViewModel.runningExercise == null)
+                        break;
+
                     if (paused) {
                         if (startPause == 0) {
                             startPause = data.mTime;

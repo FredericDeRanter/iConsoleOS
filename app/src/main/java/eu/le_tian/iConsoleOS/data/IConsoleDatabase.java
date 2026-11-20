@@ -14,7 +14,7 @@ import java.io.File;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-@Database(entities = {User.class, Settings.class, Exercise.class, ExerciseData.class, ExerciseProfile.class, ExerciseProfileData.class}, version = 6)
+@Database(entities = {User.class, Settings.class, Exercise.class, ExerciseData.class, ExerciseProfile.class, ExerciseProfileData.class}, version = 7)
 public abstract class IConsoleDatabase extends RoomDatabase {
     public abstract UserDao userDao();
 
@@ -52,14 +52,21 @@ public abstract class IConsoleDatabase extends RoomDatabase {
         }
     };
 
+    static final Migration MIGRATION_6_7 = new Migration(6, 7) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            // Must match the index Room derives from @Index("exerciseParentID") on ExerciseData
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_ExerciseData_exerciseParentID` ON `ExerciseData` (`exerciseParentID`)");
+        }
+    };
+
     static IConsoleDatabase getDatabase(final Context context) {
         if (INSTANCE == null) {
             synchronized (IConsoleDatabase.class) {
                 if (INSTANCE == null) {
                     Log.v(TAG, "init db");
                     INSTANCE = Room.databaseBuilder(context.getApplicationContext(), IConsoleDatabase.class, "IConsoleDB")
-                            .addMigrations(MIGRATION_5_6)
-                            .fallbackToDestructiveMigration()
+                            .addMigrations(MIGRATION_5_6, MIGRATION_6_7)
                             .addCallback(rdbc)
                             .build();
                 }

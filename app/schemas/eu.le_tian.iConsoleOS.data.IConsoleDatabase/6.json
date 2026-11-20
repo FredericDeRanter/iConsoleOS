@@ -1,0 +1,346 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 6,
+    "identityHash": "d96d7fc9a08df22fe819a6ba8aa7eea1",
+    "entities": [
+      {
+        "tableName": "User",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userID` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `userName` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "userID",
+            "columnName": "userID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userName",
+            "columnName": "userName",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "userID"
+          ]
+        }
+      },
+      {
+        "tableName": "Settings",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`settingsID` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `userParentID` INTEGER NOT NULL, `defaultProfileID` INTEGER NOT NULL, `quickIncrease` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "settingsID",
+            "columnName": "settingsID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userParentID",
+            "columnName": "userParentID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "defaultProfileID",
+            "columnName": "defaultProfileID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quickIncrease",
+            "columnName": "quickIncrease",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "settingsID"
+          ]
+        }
+      },
+      {
+        "tableName": "Exercise",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`exerciseID` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `exStartDateTime` INTEGER NOT NULL, `exStopDateTime` INTEGER NOT NULL, `exProfileName` TEXT, `userParentID` INTEGER NOT NULL, `summarized` INTEGER NOT NULL, `totalDuration` INTEGER NOT NULL, `totalDistance` INTEGER NOT NULL, `totalCalories` INTEGER NOT NULL, `avgPower` INTEGER NOT NULL, `maxPower` INTEGER NOT NULL, `avgSpeed` INTEGER NOT NULL, `maxSpeed` INTEGER NOT NULL, `avgHR` INTEGER NOT NULL, `maxHR` INTEGER NOT NULL, `avgRPM` INTEGER NOT NULL, `maxRPM` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "exerciseID",
+            "columnName": "exerciseID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exStartDateTime",
+            "columnName": "exStartDateTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exStopDateTime",
+            "columnName": "exStopDateTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exProfileName",
+            "columnName": "exProfileName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "userParentID",
+            "columnName": "userParentID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "summarized",
+            "columnName": "summarized",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalDuration",
+            "columnName": "totalDuration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalDistance",
+            "columnName": "totalDistance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalCalories",
+            "columnName": "totalCalories",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "avgPower",
+            "columnName": "avgPower",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxPower",
+            "columnName": "maxPower",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "avgSpeed",
+            "columnName": "avgSpeed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxSpeed",
+            "columnName": "maxSpeed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "avgHR",
+            "columnName": "avgHR",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxHR",
+            "columnName": "maxHR",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "avgRPM",
+            "columnName": "avgRPM",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxRPM",
+            "columnName": "maxRPM",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "exerciseID"
+          ]
+        }
+      },
+      {
+        "tableName": "ExerciseData",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`exerciseDataID` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `exPower` INTEGER NOT NULL, `exSpeed` INTEGER NOT NULL, `exDistance` INTEGER NOT NULL, `exCalories` INTEGER NOT NULL, `exHR` INTEGER NOT NULL, `exRPM` INTEGER NOT NULL, `exTimestamp` INTEGER NOT NULL, `exerciseParentID` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "exerciseDataID",
+            "columnName": "exerciseDataID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exPower",
+            "columnName": "exPower",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exSpeed",
+            "columnName": "exSpeed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exDistance",
+            "columnName": "exDistance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exCalories",
+            "columnName": "exCalories",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exHR",
+            "columnName": "exHR",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exRPM",
+            "columnName": "exRPM",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exTimestamp",
+            "columnName": "exTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exerciseParentID",
+            "columnName": "exerciseParentID",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "exerciseDataID"
+          ]
+        }
+      },
+      {
+        "tableName": "ExerciseProfile",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`exerciseProfileID` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sortOrder` INTEGER NOT NULL, `exerciseProfileName` TEXT, `startLevel` INTEGER NOT NULL, `defaultDuration` INTEGER NOT NULL, `repeatToFill` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "exerciseProfileID",
+            "columnName": "exerciseProfileID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exerciseProfileName",
+            "columnName": "exerciseProfileName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "startLevel",
+            "columnName": "startLevel",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "defaultDuration",
+            "columnName": "defaultDuration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatToFill",
+            "columnName": "repeatToFill",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "exerciseProfileID"
+          ]
+        }
+      },
+      {
+        "tableName": "ExerciseProfileData",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`exerciseProfileDataID` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sortOrder` INTEGER NOT NULL, `dataType` INTEGER NOT NULL, `relativeLevel` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `parentExerciseProfileID` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "exerciseProfileDataID",
+            "columnName": "exerciseProfileDataID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dataType",
+            "columnName": "dataType",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relativeLevel",
+            "columnName": "relativeLevel",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "duration",
+            "columnName": "duration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentExerciseProfileID",
+            "columnName": "parentExerciseProfileID",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "exerciseProfileDataID"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd96d7fc9a08df22fe819a6ba8aa7eea1')"
+    ]
+  }
+}

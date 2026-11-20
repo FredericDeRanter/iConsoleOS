@@ -97,7 +97,8 @@ MainActivity ── starts ──> BluetoothChatService (Service)
 - `HistoryFragment` covers workout history and summarization. `ExerciseProfileFragment` + adapters are
   the profile editor. `analytics/` shows progress graphs. `SettingsFragment` holds settings.
   `share/` and `send/` are leftover template fragments.
-- A single shared `IConsoleViewModel` (activity-scoped) is used across fragments.
+- `IConsoleViewModel` is created per fragment (`new ViewModelProvider(this)`), so fragments do **not**
+  share state through it; each gets its own instance and repository.
 - Custom widgets: `customtimepicker/`, `levelpicker/`, `heartbeat/`, `graph/`.
 - CSV export: `CSVclass/OpenCSVWriter.java` (opencsv).
 
@@ -106,10 +107,11 @@ MainActivity ── starts ──> BluetoothChatService (Service)
 ### Database: the user's workout data must never be lost
 - The DB contains the user's real workout history. **Every schema change needs a version bump and
   an explicit `Migration`**, added with `.addMigrations(...)`, following `MIGRATION_5_6` in `IConsoleDatabase`.
-- `fallbackToDestructiveMigration()` is a last-resort safety net, not a plan. Never rely on it,
-  and never add code paths that clear tables (like `initDb()`'s `deleteAll()` calls) where they could run on real data.
-- Consider enabling Room schema export (`room.schemaLocation`) and a `MigrationTestHelper` test
-  when touching the schema. Ask first, because this is a build-config change.
+- There is deliberately **no** `fallbackToDestructiveMigration()`: a missing migration (or installing
+  an older build over a newer DB) must crash, not wipe data. Don't add it back. Never add code paths that
+  clear tables (like `initDb()`'s `deleteAll()` calls) where they could run on real data.
+- Room schema export is on: each version's schema is in `app/schemas/` and must be committed with
+  the version bump.
 - `drawertest-data.tar` (~168 MB, untracked) is a snapshot of the app's data directory
   (`databases/IConsoleDB*`, backups). It's private data: **never commit it**, and never modify or delete it.
 
