@@ -1,5 +1,6 @@
 package eu.le_tian.iConsoleOS.data;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
@@ -18,6 +19,25 @@ public final class BackupFiles {
     /** e.g. {@code IConsoleDB-20261120-1830.db}, in local time. */
     public static String backupFileName(Date when) {
         return "IConsoleDB-" + new SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(when) + ".db";
+    }
+
+    /** Name of an automatic safety copy, sortable by time: {@code IConsoleDB-20261120-183005.db}. */
+    public static String safetyCopyName(Date when) {
+        return "IConsoleDB-" + new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(when) + ".db";
+    }
+
+    /**
+     * Deletes all but the newest {@code keep} safety copies in {@code dir} (by name, which sorts
+     * by time). Other files are left alone.
+     */
+    public static void pruneSafetyCopies(File dir, int keep) {
+        File[] copies = dir.listFiles((d, name) -> name.matches("IConsoleDB-\\d{8}-\\d{6}\\.db"));
+        if (copies == null || copies.length <= keep)
+            return;
+        Arrays.sort(copies, (a, b) -> a.getName().compareTo(b.getName()));
+        for (int i = 0; i < copies.length - keep; i++)
+            //noinspection ResultOfMethodCallIgnored
+            copies[i].delete();
     }
 
     /** True if the first bytes of a file are the SQLite 3 header. */

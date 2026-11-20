@@ -14,8 +14,11 @@ import java.io.File;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-@Database(entities = {User.class, Settings.class, Exercise.class, ExerciseData.class, ExerciseProfile.class, ExerciseProfileData.class, ExerciseSamples.class}, version = 8)
+@Database(entities = {User.class, Settings.class, Exercise.class, ExerciseData.class, ExerciseProfile.class, ExerciseProfileData.class, ExerciseSamples.class}, version = IConsoleDatabase.VERSION)
 public abstract class IConsoleDatabase extends RoomDatabase {
+    /** Bump together with a new Migration and the exported schema in app/schemas. */
+    public static final int VERSION = 8;
+
     public abstract UserDao userDao();
 
     public abstract SettingsDao settingsDao();
@@ -84,6 +87,19 @@ public abstract class IConsoleDatabase extends RoomDatabase {
             }
         }
         return INSTANCE;
+    }
+
+    /**
+     * Closes the database so its file can be replaced by a restore. The app must restart right
+     * after: repositories created earlier still hold the closed instance.
+     */
+    static void closeForRestore() {
+        synchronized (IConsoleDatabase.class) {
+            if (INSTANCE != null) {
+                INSTANCE.close();
+                INSTANCE = null;
+            }
+        }
     }
 
     private static void clearDB() {

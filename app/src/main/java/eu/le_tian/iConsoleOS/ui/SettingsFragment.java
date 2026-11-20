@@ -1,7 +1,7 @@
 package eu.le_tian.iConsoleOS.ui;
 
-import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 import android.text.format.Formatter;
 
@@ -17,9 +17,7 @@ import java.util.Locale;
 import eu.le_tian.iConsoleOS.data.BackupFiles;
 import eu.le_tian.iConsoleOS.data.DatabaseBackup;
 import eu.le_tian.iConsoleOS.data.IConsoleRepository;
-import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.os.FileUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -27,23 +25,15 @@ import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.google.android.material.snackbar.Snackbar;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
 
 import eu.le_tian.iConsoleOS.R;
 import eu.le_tian.iConsoleOS.databinding.FragmentSettingsBinding;
 
-import static androidx.core.content.ContextCompat.checkSelfPermission;
 
 /**
  * This fragment is where to adjust settings and users.
@@ -137,70 +127,107 @@ public class SettingsFragment extends Fragment {
                 info.workouts, latest, Formatter.formatShortFileSize(context, info.bytes), info.version);
     }
 
+    /** Asks which backup to restore, then {@link #checkRestore}. */
+    private final ActivityResultLauncher<String[]> openBackupDocument = registerForActivityResult(
+            new ActivityResultContracts.OpenDocument(),
+            uri -> {
+                if (uri != null) checkRestore(uri);
+            });
+
     void importDatabase() {
-        int permission = checkSelfPermission(getContext(), Manifest.permission.READ_EXTERNAL_STORAGE);
-        if (permission == PackageManager.PERMISSION_GRANTED) {
-            IConsoleViewModel.emptyWall();
-            File db2 = getContext().getDatabasePath("IConsoleDB");
-            File db = new File("/sdcard/", "IConsoleDB");
-            //File dbShm = new File(db.getParent(), "my-db-shm");
-            //File dbWal = new File(db.getParent(), "my-db-wal");
-            //File dbShm2 = new File(db2.getParent(), "my-db-shm");
-            //File dbWal2 = new File(db2.getParent(), "my-db-wal");
+        if (IConsoleRepository.isRecording()) {
+            Snackbar.make(requireView(), "Stop the workout before restoring", Snackbar.LENGTH_LONG).show();
+            return;
+        }
+        // .db files have no registered MIME type, so allow any file; the content is checked.
+        openBackupDocument.launch(new String[]{"*/*"});
+    }
 
+    /** Copies and checks the chosen file in the background, then asks for confirmation. */
+    private void checkRestore(Uri uri) {
+        Context appContext = requireContext().getApplicationContext();
+        binding.importDbBtn.setEnabled(false);
+        new Thread(() -> {
+            DatabaseBackup.RestoreCandidate candidate = null;
+            String error = null;
             try {
-                Log.d("RESTOREDB", "db restoring");
-                copyFile(db.getPath(), "", db2.getPath());
-                Log.d("RESTOREDB", "db restored");
-            } catch (Exception e) {
-                Log.e("RESTOREDB", e.toString());
+                candidate = DatabaseBackup.prepareRestore(appContext, uri);
+            } catch (IOException | RuntimeException e) {
+                Log.e("RESTOREDB", "Backup file rejected", e);
+                error = String.valueOf(e.getMessage());
             }
-        } else {
-            Snackbar.make(getView(), "Please allow access to your storage", Snackbar.LENGTH_LONG)
-                    .setAction("Allow", view -> requestPermissions(new String[]{
-                            Manifest.permission.READ_EXTERNAL_STORAGE
-                    }, 0)).show();
-        }
-    }
-
-    private void copyFile(String inputPath, String inputFile, String outputPath) {
-        InputStream in = null;
-        OutputStream out = null;
-        try {
-            //check if inputFile is empty or not (if it's empty the path are full paths
-            if (inputFile != "") {
-                //create output directory if it doesn't exist
-                File dir = new File(outputPath);
-                if (!dir.exists()) {
-                    dir.mkdirs();
+            final DatabaseBackup.RestoreCandidate c = candidate;
+            final String err = error;
+            runOnUi(() -> {
+                binding.importDbBtn.setEnabled(true);
+                if (c == null) {
+                    showMessage("Can't restore this file", err);
+                } else {
+                    confirmRestore(appContext, c);
                 }
-                in = new FileInputStream(inputPath + inputFile);
-                out = new FileOutputStream(outputPath + inputFile);
-            } else {
-                in = new FileInputStream(inputPath);
-                out = new FileOutputStream(outputPath);
-            }
-
-            byte[] buffer = new byte[1024];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-            in.close();
-            in = null;
-
-            // write the output file (You have now copied the file)
-            out.flush();
-            out.close();
-            out = null;
-
-        } catch (FileNotFoundException fnfe1) {
-            Log.e("tag", fnfe1.getMessage());
-        } catch (Exception e) {
-            Log.e("tag", e.getMessage());
-        }
-
+            });
+        }).start();
     }
 
+    private void confirmRestore(Context appContext, DatabaseBackup.RestoreCandidate c) {
+        StringBuilder msg = new StringBuilder("Replace ALL data in the app with this backup?\n\n")
+                .append("BACKUP:\n").append(describe(appContext, c.backup))
+                .append("\n\nCURRENT DATA:\n").append(describe(appContext, c.current));
+        if (c.backup.workouts < c.current.workouts || c.backup.latestStart < c.current.latestStart) {
+            msg.append("\n\n\u26A0 The backup is OLDER than the current data. Workouts recorded after it will be gone from the app.");
+        }
+        msg.append("\n\nA safety copy of the current data is kept in the app (last 3). The app restarts afterwards.");
 
+        new AlertDialog.Builder(requireContext())
+                .setTitle("Restore backup")
+                .setMessage(msg.toString())
+                .setPositiveButton("Restore", (d, w) -> runRestore(appContext, c))
+                .setNegativeButton("Cancel", (d, w) -> c.discard())
+                .setOnCancelListener(d -> c.discard())
+                .show();
+    }
+
+    private void runRestore(Context appContext, DatabaseBackup.RestoreCandidate c) {
+        binding.importDbBtn.setEnabled(false);
+        binding.exportDbBtn.setEnabled(false);
+        Snackbar.make(requireView(), "Restoring...", Snackbar.LENGTH_INDEFINITE).show();
+        new Thread(() -> {
+            try {
+                DatabaseBackup.restore(appContext, c);
+                Log.i("RESTOREDB", "Restored, restarting");
+                restartApp(appContext);
+            } catch (IOException | RuntimeException e) {
+                Log.e("RESTOREDB", "Restore failed", e);
+                // The database may already be closed: restart either way so nothing uses a closed instance.
+                runOnUi(() -> new AlertDialog.Builder(requireContext())
+                        .setTitle("Restore FAILED")
+                        .setMessage(e.getMessage() + "\n\nThe app will restart.")
+                        .setPositiveButton("OK", null)
+                        .setOnDismissListener(d -> restartApp(appContext))
+                        .show());
+            }
+        }).start();
+    }
+
+    private static void restartApp(Context appContext) {
+        Intent launch = appContext.getPackageManager().getLaunchIntentForPackage(appContext.getPackageName());
+        if (launch != null && launch.getComponent() != null)
+            appContext.startActivity(Intent.makeRestartActivityTask(launch.getComponent()));
+        Runtime.getRuntime().exit(0);
+    }
+
+    private void runOnUi(Runnable r) {
+        if (getActivity() != null)
+            getActivity().runOnUiThread(() -> {
+                if (binding != null) r.run();
+            });
+    }
+
+    private void showMessage(String title, String message) {
+        new AlertDialog.Builder(requireContext())
+                .setTitle(title)
+                .setMessage(message)
+                .setPositiveButton("OK", null)
+                .show();
+    }
 }

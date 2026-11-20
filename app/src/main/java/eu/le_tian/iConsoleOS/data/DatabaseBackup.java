@@ -90,6 +90,109 @@ public final class DatabaseBackup {
         }
     }
 
+    /** A checked backup, copied into the app's cache, waiting for the user to confirm. */
+    public static final class RestoreCandidate {
+        final File file;
+        public final Info backup;
+        public final Info current;
+
+        RestoreCandidate(File file, Info backup, Info current) {
+            this.file = file;
+            this.backup = backup;
+            this.current = current;
+        }
+
+        /** Call when the user cancels. */
+        public void discard() {
+            deleteWithSidecars(file);
+        }
+    }
+
+    /** Folder (app private storage) with the safety copies made before each restore. */
+    public static File safetyCopyDir(Context context) {
+        return new File(context.getFilesDir(), "pre-restore");
+    }
+
+    /** Step 1 of a restore: copy the chosen file into the cache and check it. Changes nothing. */
+    public static RestoreCandidate prepareRestore(Context context, Uri source) throws IOException {
+        File candidate = new File(context.getCacheDir(), "restore-candidate.db");
+        deleteWithSidecars(candidate);
+        try {
+            try (InputStream in = context.getContentResolver().openInputStream(source);
+                 OutputStream out = new FileOutputStream(candidate)) {
+                if (in == null)
+                    throw new IOException("Can't read the chosen file");
+                copy(in, out);
+            }
+            Info backup = inspect(candidate);
+            if (!BackupFiles.isRestorableVersion(backup.version, IConsoleDatabase.VERSION))
+                throw new IOException("This backup has database version " + backup.version
+                        + "; this app can restore versions " + BackupFiles.MIN_RESTORABLE_VERSION
+                        + " to " + IConsoleDatabase.VERSION + ".");
+            return new RestoreCandidate(candidate, backup, currentInfo(context));
+        } catch (IOException | RuntimeException e) {
+            deleteWithSidecars(candidate);
+            throw e;
+        }
+    }
+
+    /**
+     * Step 2, after the user confirmed: safety copy of the current database, then replace it.
+     * The database is closed afterwards: the caller must restart the app right away.
+     *
+     * @return the safety copy of the data that was replaced
+     */
+    public static File restore(Context context, RestoreCandidate candidate) throws IOException {
+        if (IConsoleRepository.isRecording())
+            throw new IOException("A workout is being recorded. Stop it before restoring.");
+        if (!candidate.file.exists())
+            throw new IOException("The checked backup copy is gone, please pick the file again.");
+
+        // 1. Safety copy of what we're about to replace; abort if that fails.
+        File safetyDir = safetyCopyDir(context);
+        if (!safetyDir.isDirectory() && !safetyDir.mkdirs())
+            throw new IOException("Can't create " + safetyDir);
+        File safety = new File(safetyDir, BackupFiles.safetyCopyName(new java.util.Date()));
+        snapshot(context, safety);
+        inspect(copyOf(safety, new File(context.getCacheDir(), "safety-check.db")));
+        deleteWithSidecars(new File(context.getCacheDir(), "safety-check.db"));
+        BackupFiles.pruneSafetyCopies(safetyDir, 3);
+
+        // 2. Stage the backup next to the database, so the final step is an atomic rename.
+        File dbFile = context.getDatabasePath(DB_NAME);
+        File staged = new File(dbFile.getPath() + ".restoring");
+        copyOf(candidate.file, staged);
+
+        // 3. Close, drop the old WAL/SHM/journal, swap the file in.
+        IConsoleDatabase.closeForRestore();
+        for (String suffix : new String[]{"-wal", "-shm", "-journal"}) {
+            File f = new File(dbFile.getPath() + suffix);
+            if (f.exists() && !f.delete())
+                throw new IOException("Can't delete " + f.getName() + "; the old database is still in place, safety copy: " + safety.getName());
+        }
+        if (!staged.renameTo(dbFile))
+            throw new IOException("Can't replace the database; safety copy: " + safety.getName());
+        candidate.discard();
+        Log.i(TAG, "Restored " + candidate.backup.workouts + " workouts, safety copy " + safety);
+        return safety;
+    }
+
+    private static Info currentInfo(Context context) {
+        SupportSQLiteDatabase sql = IConsoleDatabase.getDatabase(context).getOpenHelper().getReadableDatabase();
+        try (Cursor c = sql.query("SELECT COUNT(*), COALESCE(MAX(exStartDateTime), 0) FROM Exercise")) {
+            c.moveToFirst();
+            return new Info(sql.getVersion(), c.getInt(0), c.getLong(1),
+                    context.getDatabasePath(DB_NAME).length());
+        }
+    }
+
+    private static File copyOf(File from, File to) throws IOException {
+        try (InputStream in = new FileInputStream(from); OutputStream out = new FileOutputStream(to)) {
+            copy(in, out);
+        }
+        return to;
+    }
+
     /** @return SHA-256 of the document, or null if this provider doesn't let us read it back */
     private static byte[] readBackHash(ContentResolver resolver, Uri uri) {
         try (InputStream back = resolver.openInputStream(uri)) {

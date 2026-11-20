@@ -95,6 +95,11 @@ MainActivity ── starts ──> BluetoothChatService (Service)
   `getExerciseDataNotLive`. `SampleCodec` versions are forever: add a new version, never change one.
 - Summaries (`WorkoutSummary`) are written once; never overwrite an existing summary, because older
   builds deleted the samples it was computed from.
+- Backup/restore (Settings): `data/DatabaseBackup` via the system file picker (SAF), no storage
+  permissions. Backup = checkpoint(TRUNCATE) + copy + check the WAL stayed empty, then
+  integrity-check and SHA-256 compare. Restore checks the file (version 5..`IConsoleDatabase.VERSION`),
+  asks for confirmation, keeps a safety copy in `files/pre-restore/` (last 3), swaps the file with an
+  atomic rename and restarts the app.
 - `initDb()` seeds default user, settings, and profiles, but its call sites are commented out.
 
 ### `ui/`

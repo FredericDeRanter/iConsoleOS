@@ -1,6 +1,14 @@
 package eu.le_tian.iConsoleOS.data;
 
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Calendar;
@@ -10,6 +18,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class BackupFilesTest {
+    @Rule
+    public TemporaryFolder tmp = new TemporaryFolder();
 
     @Test
     public void backupFileNameIsTimestamped() {
@@ -27,6 +37,29 @@ public class BackupFilesTest {
         assertFalse(BackupFiles.hasSqliteHeader(zip, zip.length));
         byte[] almost = "SQLite format 2\0".getBytes(StandardCharsets.US_ASCII);
         assertFalse(BackupFiles.hasSqliteHeader(almost, almost.length));
+    }
+
+    @Test
+    public void safetyCopyNameHasSeconds() {
+        Calendar c = Calendar.getInstance();
+        c.set(2026, Calendar.NOVEMBER, 20, 18, 5, 9);
+        assertEquals("IConsoleDB-20261120-180509.db", BackupFiles.safetyCopyName(c.getTime()));
+    }
+
+    @Test
+    public void pruneKeepsNewestThreeAndIgnoresOtherFiles() throws IOException {
+        File dir = tmp.newFolder("pre-restore");
+        String[] names = {"IConsoleDB-20261101-100000.db", "IConsoleDB-20261120-090000.db",
+                "IConsoleDB-20261105-120000.db", "IConsoleDB-20261119-235959.db", "notes.txt",
+                "IConsoleDB-20261120-0900.db" /* user-style name, not a safety copy */};
+        for (String n : names)
+            assertTrue(new File(dir, n).createNewFile());
+
+        BackupFiles.pruneSafetyCopies(dir, 3);
+
+        Set<String> left = new HashSet<>(Arrays.asList(dir.list()));
+        assertEquals(new HashSet<>(Arrays.asList("IConsoleDB-20261120-090000.db", "IConsoleDB-20261105-120000.db",
+                "IConsoleDB-20261119-235959.db", "notes.txt", "IConsoleDB-20261120-0900.db")), left);
     }
 
     @Test
