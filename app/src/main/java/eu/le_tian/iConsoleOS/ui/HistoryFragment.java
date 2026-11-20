@@ -2,6 +2,7 @@ package eu.le_tian.iConsoleOS.ui;
 
 import android.content.res.Resources;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -9,11 +10,13 @@ import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import java.util.Locale;
+import java.util.concurrent.ExecutionException;
 
 import eu.le_tian.iConsoleOS.databinding.FragmentHistoryBinding;
 
@@ -27,6 +30,9 @@ public class HistoryFragment extends Fragment {
     private FragmentHistoryBinding binding;
     private Resources res;
     private StoredWorkoutAdapter workoutAdapter;
+    private long rawSampleCount = 0;
+    private long compactedSampleCount = 0;
+    private static final String TAG = "HistoryFragment";
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
@@ -48,44 +54,60 @@ public class HistoryFragment extends Fragment {
 
         binding.btnSummarizeWorkouts.setOnClickListener(v -> {
             if (IConsoleViewModel == null) return;
-            binding.btnSummarizeWorkouts.setEnabled(false);
-            Toast.makeText(getContext(), "Summarizing workouts and cleaning up data...", Toast.LENGTH_SHORT).show();
-
-            new Thread(() -> {
-                try {
-                    int count = IConsoleViewModel.summarizeAllUnsummarizedExercises().get();
-                    if (getActivity() != null) {
-                        getActivity().runOnUiThread(() -> {
-                            if (binding != null) {
-                                binding.btnSummarizeWorkouts.setEnabled(true);
-                                String msg = count > 0 ? "Successfully summarized " + count + " workout(s)." : "All workouts are already summarized.";
-                                Toast.makeText(getContext(), msg, Toast.LENGTH_LONG).show();
-                                updateDatabaseStats();
-                            }
-                        });
-                    }
-                } catch (Exception e) {
-                    if (getActivity() != null) {
-                        getActivity().runOnUiThread(() -> {
-                            if (binding != null) {
-                                binding.btnSummarizeWorkouts.setEnabled(true);
-                                Toast.makeText(getContext(), "Error during cleanup: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                            }
-                        });
-                    }
-                }
-            }).start();
+            new AlertDialog.Builder(requireContext())
+                    .setTitle("Compact data")
+                    .setMessage("Packs the per-second samples of finished workouts into a compact form "
+                            + "(nothing is thrown away) and then shrinks the database file.\n\n"
+                            + "This rewrites the whole database. Make a backup first if you don't have a recent one.")
+                    .setPositiveButton("Compact", (d, w) -> compactData())
+                    .setNegativeButton("Cancel", null)
+                    .show();
         });
 
         updateDatabaseStats();
     }
 
+    private void compactData() {
+        binding.btnSummarizeWorkouts.setEnabled(false);
+        Toast.makeText(getContext(), "Compacting data...", Toast.LENGTH_SHORT).show();
+
+        new Thread(() -> {
+            String msg;
+            try {
+                int count = IConsoleViewModel.compactAllExercises().get();
+                msg = count > 0 ? "Compacted " + count + " workout(s), database shrunk."
+                        : "Nothing to compact, database shrunk.";
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause() != null ? e.getCause() : e;
+                Log.e(TAG, "Compacting failed", cause);
+                msg = "Compacting failed: " + cause.getMessage();
+            } catch (InterruptedException e) {
+                msg = "Compacting interrupted";
+            }
+            final String result = msg;
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    if (binding == null) return;
+                    binding.btnSummarizeWorkouts.setEnabled(true);
+                    refreshDatabaseSize();
+                    new AlertDialog.Builder(requireContext())
+                            .setMessage(result)
+                            .setPositiveButton("OK", null)
+                            .show();
+                });
+            }
+        }).start();
+    }
+
+    private void refreshDatabaseSize() {
+        if (binding == null || IConsoleViewModel == null) return;
+        binding.tvDatabaseSize.setText("Database Size: " + IConsoleViewModel.getFormattedDatabaseSize());
+    }
+
     private void updateDatabaseStats() {
         if (binding == null || IConsoleViewModel == null) return;
 
-        // Display current DB size
-        String dbSize = IConsoleViewModel.getFormattedDatabaseSize();
-        binding.tvDatabaseSize.setText("Database Size: " + dbSize);
+        refreshDatabaseSize();
 
         // Observe total workouts count
         IConsoleViewModel.getExerciseCount().observe(getViewLifecycleOwner(), count -> {
@@ -99,7 +121,7 @@ public class HistoryFragment extends Fragment {
         IConsoleViewModel.getSummarizedExerciseCount().observe(getViewLifecycleOwner(), count -> {
             if (binding != null) {
                 int total = count != null ? count : 0;
-                binding.tvSummarizedCount.setText("Summarized Workouts (Cleaned): " + total);
+                binding.tvSummarizedCount.setText("Summarized Workouts: " + total);
             }
         });
 
@@ -115,8 +137,14 @@ public class HistoryFragment extends Fragment {
         IConsoleViewModel.getExerciseDataCount().observe(getViewLifecycleOwner(), count -> {
             if (binding != null) {
                 int total = count != null ? count : 0;
-                binding.tvDataPointCount.setText("Raw Sample Points Stored: " + String.format(Locale.US, "%,d", total));
+                rawSampleCount = total;
+                showSampleCounts();
             }
+        });
+
+        IConsoleViewModel.getCompactedSampleCount().observe(getViewLifecycleOwner(), count -> {
+            compactedSampleCount = count != null ? count : 0;
+            showSampleCounts();
         });
 
         // Observe stored exercises list
@@ -125,6 +153,12 @@ public class HistoryFragment extends Fragment {
                 workoutAdapter.setExercises(exercises);
             }
         });
+    }
+
+    private void showSampleCounts() {
+        if (binding == null) return;
+        binding.tvDataPointCount.setText(String.format(Locale.US,
+                "Samples: %,d compacted, %,d not compacted yet", compactedSampleCount, rawSampleCount));
     }
 
     private void writeExercisesToCSV() {

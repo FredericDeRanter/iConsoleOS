@@ -1030,7 +1030,7 @@ public class HomeFragment extends Fragment {
             long exerciseID = IConsoleViewModel.runningExercise.getExerciseID();
             new Thread(() -> {
                 try {
-                    Exercise summary = IConsoleViewModel.summarizeAndCleanExercise(exerciseID).get();
+                    Exercise summary = IConsoleViewModel.finishExercise(exerciseID).get();
                     if (summary != null && getActivity() != null) {
                         getActivity().runOnUiThread(() -> showWorkoutSummaryDialog(summary));
                     } else if (getActivity() != null) {

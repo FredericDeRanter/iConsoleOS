@@ -2,24 +2,34 @@ package eu.le_tian.iConsoleOS.data;
 
 import android.app.Application;
 import android.content.Context;
+import android.database.Cursor;
 import android.util.Log;
 
 import androidx.lifecycle.LiveData;
 import androidx.sqlite.db.SimpleSQLiteQuery;
+import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
 public class IConsoleRepository {
     private static String TAG = "Repository";
+    /**
+     * ID of the workout being recorded right now, or -1. Process-wide because every fragment has
+     * its own repository instance; a crash resets it, so a crashed workout gets compacted later.
+     */
+    private static volatile long sRecordingExerciseID = -1;
     private ExerciseProfileDao exerciseProfileDao;
     private ExerciseProfileDataDao exerciseProfileDataDao;
     private SettingsDao settingsDao;
     private UserDao userDao;
     private ExerciseDAO exerciseDAO;
     private ExerciseDataDao exerciseDataDao;
+    private ExerciseSamplesDao exerciseSamplesDao;
     public IConsoleDatabase db;
 
     private LiveData<List<ExerciseProfile>> mAllExerciseProfiles;
@@ -36,6 +46,7 @@ public class IConsoleRepository {
         userDao = db.userDao();
         exerciseDAO = db.exerciseDAO();
         exerciseDataDao = db.exerciseDataDao();
+        exerciseSamplesDao = db.exerciseSamplesDao();
 
         mAllExerciseProfiles = exerciseProfileDao.getExerciseProfile();
         mAllExerciseProfileData = exerciseProfileDataDao.getExerciseProfileData();
@@ -148,6 +159,10 @@ public class IConsoleRepository {
         return future;
     }
 
+    public static void setRecordingExerciseID(long exerciseID) {
+        sRecordingExerciseID = exerciseID;
+    }
+
     public Future<Long> insertExercise(Exercise exercise) {
         Future<Long> future = IConsoleDatabase.databaseWriteExecutor.submit(() -> {
             return exerciseDAO.insert(exercise);
@@ -162,9 +177,11 @@ public class IConsoleRepository {
     }
 
     public void deleteExercise(Exercise exercise) {
-        IConsoleDatabase.databaseWriteExecutor.execute(() -> {
+        IConsoleDatabase.databaseWriteExecutor.execute(() -> db.runInTransaction(() -> {
+            exerciseDataDao.deleteDataForExercise(exercise.getExerciseID());
+            exerciseSamplesDao.deleteForExercise(exercise.getExerciseID());
             exerciseDAO.delete(exercise);
-        });
+        }));
     }
 
     /**
@@ -174,15 +191,9 @@ public class IConsoleRepository {
         return exerciseDataDao.getExerciseData(exerciseID);
     }
 
+    /** All samples of a workout, compacted ones first, then rows not compacted yet. */
     public Future<List<ExerciseData>> getExerciseDataNotLive(long exerciseID) {
-        Future<List<ExerciseData>> future = IConsoleDatabase.databaseWriteExecutor.submit(new Callable<List<ExerciseData>>() {
-            @Override
-            public List<ExerciseData> call() throws Exception {
-                return exerciseDataDao.getExerciseDataNotLive(exerciseID);
-            }
-
-        });
-        return future;
+        return IConsoleDatabase.databaseWriteExecutor.submit(() -> loadAllSamples(exerciseID));
     }
 
     public void insertExerciseData(ExerciseData exerciseData) {
@@ -281,81 +292,107 @@ public class IConsoleRepository {
         });
     }
 
-    private Exercise summarizeAndCleanExerciseInternal(Exercise exercise) {
-        if (exercise == null) {
-            return null;
-        }
-
-        List<ExerciseData> dataList = exerciseDataDao.getExerciseDataNotLive(exercise.getExerciseID());
-        if (dataList != null && !dataList.isEmpty()) {
-            int maxPower = 0, sumPower = 0;
-            int maxSpeed = 0, sumSpeed = 0;
-            int maxHR = 0, sumHR = 0;
-            int maxRPM = 0, sumRPM = 0;
-            int maxDistance = 0, maxCalories = 0;
-
-            for (ExerciseData d : dataList) {
-                if (d.getExPower() > maxPower) maxPower = d.getExPower();
-                sumPower += d.getExPower();
-
-                if (d.getExSpeed() > maxSpeed) maxSpeed = d.getExSpeed();
-                sumSpeed += d.getExSpeed();
-
-                if (d.getExHR() > maxHR) maxHR = d.getExHR();
-                sumHR += d.getExHR();
-
-                if (d.getExRPM() > maxRPM) maxRPM = d.getExRPM();
-                sumRPM += d.getExRPM();
-
-                if (d.getExDistance() > maxDistance) maxDistance = d.getExDistance();
-                if (d.getExCalories() > maxCalories) maxCalories = d.getExCalories();
-            }
-
-            int count = dataList.size();
-            long duration = dataList.get(count - 1).getExTimestamp();
-
-            exercise.setTotalDuration(duration);
-            exercise.setTotalDistance(maxDistance);
-            exercise.setTotalCalories(maxCalories);
-            exercise.setAvgPower(count > 0 ? sumPower / count : 0);
-            exercise.setMaxPower(maxPower);
-            exercise.setAvgSpeed(count > 0 ? sumSpeed / count : 0);
-            exercise.setMaxSpeed(maxSpeed);
-            exercise.setAvgHR(count > 0 ? sumHR / count : 0);
-            exercise.setMaxHR(maxHR);
-            exercise.setAvgRPM(count > 0 ? sumRPM / count : 0);
-            exercise.setMaxRPM(maxRPM);
-        }
-
-        exercise.setExStopDateTime(System.currentTimeMillis());
-        exercise.setSummarized(true);
-
-        exerciseDAO.update(exercise);
-        exerciseDataDao.deleteDataForExercise(exercise.getExerciseID());
-
-        return exercise;
+    public LiveData<Long> getCompactedSampleCount() {
+        return exerciseSamplesDao.getCompactedSampleCount();
     }
 
-    public Future<Exercise> summarizeAndCleanExercise(long exerciseID) {
-        return IConsoleDatabase.databaseWriteExecutor.submit(() -> {
+    /** Must run on a DB thread. */
+    private List<ExerciseData> loadAllSamples(long exerciseID) {
+        List<ExerciseData> all = new ArrayList<>();
+        ExerciseSamples packed = exerciseSamplesDao.get(exerciseID);
+        if (packed != null)
+            all.addAll(SampleCodec.decode(packed.getData(), exerciseID));
+        all.addAll(exerciseDataDao.getExerciseDataNotLive(exerciseID));
+        return all;
+    }
+
+    /**
+     * Moves a workout's sample rows into its compact blob, in one transaction, and summarizes it
+     * if it isn't yet. The rows are only deleted after the new blob was decoded again and matched
+     * the samples exactly; otherwise the transaction is rolled back and nothing changes.
+     *
+     * @param stopTime stop time to record when summarizing, or null to derive it from the
+     *                 start time and duration (for workouts compacted long after they ended)
+     * @return the exercise (null if it doesn't exist; orphan rows are still compacted)
+     */
+    private Exercise compactExercise(long exerciseID, Long stopTime) {
+        return db.runInTransaction(() -> {
+            List<ExerciseData> rows = exerciseDataDao.getExerciseDataNotLive(exerciseID);
+            List<ExerciseData> all = loadAllSamples(exerciseID);
+
+            if (!rows.isEmpty()) {
+                byte[] blob = SampleCodec.encode(all);
+                if (!SampleCodec.sameSamples(all, SampleCodec.decode(blob, exerciseID)))
+                    throw new IllegalStateException("Compacted samples of exercise " + exerciseID + " don't match, keeping rows");
+                exerciseSamplesDao.upsert(new ExerciseSamples(exerciseID, all.size(), SampleCodec.VERSION, blob));
+                exerciseDataDao.deleteDataForExercise(exerciseID);
+            }
+
             Exercise exercise = exerciseDAO.getExerciseByIDNotLive(exerciseID);
-            return summarizeAndCleanExerciseInternal(exercise);
+            // Never overwrite an existing summary: its samples may be gone (deleted by older builds).
+            if (exercise != null && !exercise.isSummarized()) {
+                WorkoutSummary summary = WorkoutSummary.of(all);
+                if (summary != null)
+                    summary.applyTo(exercise);
+                exercise.setExStopDateTime(stopTime != null ? stopTime
+                        : exercise.getExStartDateTime() + exercise.getTotalDuration() * 1000);
+                exercise.setSummarized(true);
+                exerciseDAO.update(exercise);
+            }
+            return exercise;
         });
     }
 
-    public Future<Integer> summarizeAllUnsummarizedExercises() {
+    /** Called when a workout is stopped: summarize it and compact its samples. */
+    public Future<Exercise> finishExercise(long exerciseID) {
+        long stopTime = System.currentTimeMillis();
+        if (sRecordingExerciseID == exerciseID)
+            sRecordingExerciseID = -1;
+        return IConsoleDatabase.databaseWriteExecutor.submit(() -> compactExercise(exerciseID, stopTime));
+    }
+
+    /**
+     * Compacts every workout that still has sample rows, then VACUUMs so the file actually
+     * shrinks (SQLite keeps freed pages otherwise).
+     *
+     * @return number of workouts compacted
+     * @throws IOException (wrapped in the Future) if there's not enough free space to VACUUM;
+     *                     the compaction itself has been done and is kept in that case
+     */
+    public Future<Integer> compactAllExercises(Context context) {
         return IConsoleDatabase.databaseWriteExecutor.submit(() -> {
-            List<Exercise> unsummarizedList = exerciseDAO.getUnsummarizedExercisesNotLive();
-            if (unsummarizedList == null || unsummarizedList.isEmpty()) {
-                return 0;
+            int count = 0;
+            for (long id : exerciseDataDao.getExerciseIDsWithRows()) {
+                if (id == sRecordingExerciseID)
+                    continue; // still recording: Stop will summarize and compact it
+                compactExercise(id, null);
+                count++;
             }
-            int processedCount = 0;
-            for (Exercise ex : unsummarizedList) {
-                summarizeAndCleanExerciseInternal(ex);
-                processedCount++;
-            }
-            return processedCount;
+            vacuum(context);
+            return count;
         });
+    }
+
+    /** Must run on a DB thread, outside a transaction. */
+    private void vacuum(Context context) throws IOException {
+        SupportSQLiteDatabase sqlite = db.getOpenHelper().getWritableDatabase();
+        long pageSize = pragmaLong(sqlite, "PRAGMA page_size");
+        long usedBytes = (pragmaLong(sqlite, "PRAGMA page_count") - pragmaLong(sqlite, "PRAGMA freelist_count")) * pageSize;
+        // VACUUM writes a full copy of the live data (temp file + WAL), keep a margin on top.
+        long needed = 2 * usedBytes + 20L * 1024 * 1024;
+        long free = context.getDatabasePath("IConsoleDB").getParentFile().getUsableSpace();
+        if (free < needed)
+            throw new IOException("Not enough free space to shrink the database: need "
+                    + needed / (1024 * 1024) + " MB, have " + free / (1024 * 1024) + " MB");
+        Log.i(TAG, "VACUUM, live data " + usedBytes / 1024 + " KB");
+        sqlite.execSQL("VACUUM");
+        pragmaLong(sqlite, "PRAGMA wal_checkpoint(TRUNCATE)");
+    }
+
+    private static long pragmaLong(SupportSQLiteDatabase sqlite, String pragma) {
+        try (Cursor c = sqlite.query(pragma)) {
+            return c.moveToFirst() ? c.getLong(0) : 0;
+        }
     }
 
 }

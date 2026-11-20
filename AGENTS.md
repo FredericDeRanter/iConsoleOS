@@ -88,6 +88,13 @@ MainActivity ── starts ──> BluetoothChatService (Service)
   Relation POJOs: `*With*` classes. DAOs extend `BaseDao`.
 - All writes go through `IConsoleDatabase.databaseWriteExecutor` (4-thread pool) inside
   `IConsoleRepository`. One-shot reads return `Future<…>`. Observed reads return `LiveData`.
+- Samples: while recording, each tick is an `ExerciseData` row. On Stop (and via History →
+  "Compact Data") `IConsoleRepository.compactExercise` packs a workout's samples losslessly into one
+  `ExerciseSamples` blob (`SampleCodec`, ~48× smaller) inside a transaction that verifies the blob
+  before deleting rows. A workout's full sample list = decoded blob + remaining rows; read it via
+  `getExerciseDataNotLive`. `SampleCodec` versions are forever: add a new version, never change one.
+- Summaries (`WorkoutSummary`) are written once; never overwrite an existing summary, because older
+  builds deleted the samples it was computed from.
 - `initDb()` seeds default user, settings, and profiles, but its call sites are commented out.
 
 ### `ui/`

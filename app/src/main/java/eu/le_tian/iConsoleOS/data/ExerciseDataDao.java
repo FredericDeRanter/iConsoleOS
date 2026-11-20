@@ -29,6 +29,9 @@ public interface ExerciseDataDao {
     @Query("SELECT * FROM ExerciseData WHERE exerciseParentID = :exerciseParentID ORDER BY exerciseDataID")
     List<ExerciseData> getExerciseDataNotLive(long exerciseParentID);
 
+    @Query("SELECT DISTINCT exerciseParentID FROM ExerciseData")
+    List<Long> getExerciseIDsWithRows();
+
     @Query("SELECT COUNT(*) FROM ExerciseData")
     LiveData<Integer> getExerciseDataCount();
 

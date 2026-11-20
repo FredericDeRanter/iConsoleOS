@@ -14,7 +14,7 @@ import java.io.File;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-@Database(entities = {User.class, Settings.class, Exercise.class, ExerciseData.class, ExerciseProfile.class, ExerciseProfileData.class}, version = 7)
+@Database(entities = {User.class, Settings.class, Exercise.class, ExerciseData.class, ExerciseProfile.class, ExerciseProfileData.class, ExerciseSamples.class}, version = 8)
 public abstract class IConsoleDatabase extends RoomDatabase {
     public abstract UserDao userDao();
 
@@ -27,6 +27,8 @@ public abstract class IConsoleDatabase extends RoomDatabase {
     public abstract ExerciseProfileDao exerciseProfileDao();
 
     public abstract ExerciseProfileDataDao exerciseProfileDataDao();
+
+    public abstract ExerciseSamplesDao exerciseSamplesDao();
 
     private static String TAG = "IConsoleDB";
 
@@ -60,13 +62,22 @@ public abstract class IConsoleDatabase extends RoomDatabase {
         }
     };
 
+    static final Migration MIGRATION_7_8 = new Migration(7, 8) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            // Schema only: existing rows are moved by the "Compact data" action, not here,
+            // so the upgrade is instant and can't fail halfway through the user's data.
+            database.execSQL("CREATE TABLE IF NOT EXISTS `ExerciseSamples` (`exerciseID` INTEGER NOT NULL, `sampleCount` INTEGER NOT NULL, `codecVersion` INTEGER NOT NULL, `data` BLOB NOT NULL, PRIMARY KEY(`exerciseID`))");
+        }
+    };
+
     static IConsoleDatabase getDatabase(final Context context) {
         if (INSTANCE == null) {
             synchronized (IConsoleDatabase.class) {
                 if (INSTANCE == null) {
                     Log.v(TAG, "init db");
                     INSTANCE = Room.databaseBuilder(context.getApplicationContext(), IConsoleDatabase.class, "IConsoleDB")
-                            .addMigrations(MIGRATION_5_6, MIGRATION_6_7)
+                            .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                             .addCallback(rdbc)
                             .build();
                 }

@@ -253,6 +253,7 @@ public class IConsoleViewModel extends AndroidViewModel {
             Log.e(TAG, e.toString());
         }
         runningExercise = exercise;
+        IConsoleRepository.setRecordingExerciseID(exercise.getExerciseID());
     }
 
     void insertExerciseData(ExerciseData exerciseData) {
@@ -267,12 +268,16 @@ public class IConsoleViewModel extends AndroidViewModel {
         return mRepository.getExerciseDataNotLive(exerciseID);
     }
 
-    Future<Exercise> summarizeAndCleanExercise(long exerciseID) {
-        return mRepository.summarizeAndCleanExercise(exerciseID);
+    Future<Exercise> finishExercise(long exerciseID) {
+        return mRepository.finishExercise(exerciseID);
     }
 
-    Future<Integer> summarizeAllUnsummarizedExercises() {
-        return mRepository.summarizeAllUnsummarizedExercises();
+    Future<Integer> compactAllExercises() {
+        return mRepository.compactAllExercises(getApplication());
+    }
+
+    LiveData<Long> getCompactedSampleCount() {
+        return mRepository.getCompactedSampleCount();
     }
 
     void writeExercisesToCSV(Long userID) {
