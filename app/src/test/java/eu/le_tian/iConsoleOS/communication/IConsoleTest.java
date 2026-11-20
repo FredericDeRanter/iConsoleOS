@@ -277,6 +277,40 @@ public class IConsoleTest {
         assertTrue(errors.isEmpty());
     }
 
+    @Test
+    public void deadLinkIsReportedAfterThreeMissedAcks() {
+        console.start();
+        for (int attempt = 1; attempt < IConsole.MAX_MISSED_ACKS; attempt++) {
+            sendStep();
+            now += 10_001;
+            assertTrue("attempt " + attempt + " still running", console.processIO()); // timeout, no error yet
+        }
+        assertTrue(errors.isEmpty());
+
+        sendStep();
+        now += 10_001;
+        assertFalse("third timeout ends the connection", console.processIO());
+        assertEquals(1, errors.size());
+        assertTrue(errors.get(0) instanceof java.io.IOException);
+        assertTrue(errors.get(0).getMessage().contains("No reply from the bike"));
+    }
+
+    @Test
+    public void anAckResetsTheMissedCount() {
+        console.start();
+        for (int round = 0; round < 3; round++) {
+            // two timeouts, then an answer: never three in a row
+            for (int i = 0; i < IConsole.MAX_MISSED_ACKS - 1; i++) {
+                sendStep();
+                now += 10_001;
+                assertTrue(console.processIO());
+            }
+            sendStep();
+            ackLast();
+        }
+        assertTrue(errors.isEmpty());
+    }
+
     // ---------------------------------------------------------------- input handling
 
     @Test

@@ -40,7 +40,11 @@ public class IConsole {
         SETLEVEL,
     }
 
+    /** Unanswered packets in a row (10 s each) before the link is considered dead. */
+    static final int MAX_MISSED_ACKS = 3;
+
     private State mCurrentState = State.BEGIN;
+    private int mMissedAcks = 0;
     private State mNextState = State.PING;
     private boolean mWaitAck = false;
     private int mSetLevel = 1;
@@ -215,6 +219,9 @@ public class IConsole {
 
         if ((now - mTimesent) > 10000) {
             mWaitAck = false;
+            // A bike that switched itself off never answers: stop pinging a dead link forever.
+            if (++mMissedAcks >= MAX_MISSED_ACKS)
+                throw new IOException("No reply from the bike for " + (MAX_MISSED_ACKS * 10) + " s");
             return null;
         }
 
@@ -246,6 +253,7 @@ public class IConsole {
 
         //Log.d(TAG, "wait ack success");
         mWaitAck = false;
+        mMissedAcks = 0;
 
         return buffer;
     }

@@ -43,7 +43,7 @@ public class BluetoothChatService extends Service {
     private Handler mHandler;
     private ConnectThread mConnectThread;
     private ConnectedThread mConnectedThread;
-    private int mState;
+    private volatile int mState; // read by the connection threads
     private int mNewState;
     private NotificationManager mNM;
     private int NOTIFICATION = R.string.local_service_started;
@@ -64,15 +64,18 @@ public class BluetoothChatService extends Service {
     }
 
     public boolean startIConsole() {
-        return mConnectedThread.startIConsole();
+        ConnectedThread t = mConnectedThread;
+        return t != null && t.startIConsole();
     }
 
     public boolean stopIConsole() {
-        return mConnectedThread.stopIConsole();
+        ConnectedThread t = mConnectedThread;
+        return t != null && t.stopIConsole();
     }
 
     public boolean setLevel(int level) {
-        return mConnectedThread.setLevel(level);
+        ConnectedThread t = mConnectedThread;
+        return t != null && t.setLevel(level);
     }
 
     /**
@@ -120,7 +123,31 @@ public class BluetoothChatService extends Service {
         mNewState = mState;
 
         // Give the new state to the Handler so the UI Activity can update
-        mHandler.obtainMessage(Constants.MESSAGE_STATE_CHANGE, mNewState, -1).sendToTarget();
+        Handler h = mHandler;
+        if (h != null)
+            h.obtainMessage(Constants.MESSAGE_STATE_CHANGE, mNewState, -1).sendToTarget();
+    }
+
+    /** Posts a toast text to the UI if one is attached. */
+    private void toast(String text) {
+        Handler h = mHandler;
+        if (h == null)
+            return;
+        Message msg = h.obtainMessage(Constants.MESSAGE_TOAST);
+        Bundle bundle = new Bundle();
+        bundle.putString(Constants.TOAST, text);
+        msg.setData(bundle);
+        h.sendMessage(msg);
+    }
+
+    private static void closeQuietly(BluetoothSocket socket) {
+        if (socket == null)
+            return;
+        try {
+            socket.close();
+        } catch (IOException e) {
+            Log.e(TAG, "close() of socket failed", e);
+        }
     }
 
     /**
@@ -219,11 +246,14 @@ public class BluetoothChatService extends Service {
         mConnectedThread = new ConnectedThread(socket);
         mConnectedThread.start();
         // Send the name of the connected device back to the UI Activity
-        Message msg = mHandler.obtainMessage(Constants.MESSAGE_DEVICE_NAME);
-        Bundle bundle = new Bundle();
-        bundle.putString(Constants.DEVICE_NAME, device.getName());
-        msg.setData(bundle);
-        mHandler.sendMessage(msg);
+        Handler h = mHandler;
+        if (h != null) {
+            Message msg = h.obtainMessage(Constants.MESSAGE_DEVICE_NAME);
+            Bundle bundle = new Bundle();
+            bundle.putString(Constants.DEVICE_NAME, device.getName());
+            msg.setData(bundle);
+            h.sendMessage(msg);
+        }
         // Update UI title
         updateUserInterfaceTitle();
     }
@@ -255,12 +285,7 @@ public class BluetoothChatService extends Service {
      * Indicate that the connection attempt failed and notify the UI Activity.
      */
     private void connectionFailed() {
-        // Send a failure message back to the Activity
-        Message msg = mHandler.obtainMessage(Constants.MESSAGE_TOAST);
-        Bundle bundle = new Bundle();
-        bundle.putString(Constants.TOAST, "Unable to connect device");
-        msg.setData(bundle);
-        mHandler.sendMessage(msg);
+        toast("Unable to connect device");
 
         mState = STATE_NONE;
         // Update UI title
@@ -274,12 +299,7 @@ public class BluetoothChatService extends Service {
      * Indicate that the connection was lost and notify the UI Activity.
      */
     private void connectionLost() {
-        // Send a failure message back to the Activity
-        Message msg = mHandler.obtainMessage(Constants.MESSAGE_TOAST);
-        Bundle bundle = new Bundle();
-        bundle.putString(Constants.TOAST, "Device connection was lost");
-        msg.setData(bundle);
-        mHandler.sendMessage(msg);
+        toast("Device connection was lost");
 
         mState = STATE_NONE;
         // Update UI title
@@ -310,6 +330,7 @@ public class BluetoothChatService extends Service {
     class ConnectThread extends Thread {
         private final BluetoothSocket mmSocket;
         private final BluetoothDevice mmDevice;
+        private volatile BluetoothSocket mmFallbackSocket;
 
         public ConnectThread(BluetoothDevice device) {
             mmDevice = device;
@@ -342,19 +363,22 @@ public class BluetoothChatService extends Service {
                 Log.e(TAG, "Standard socket connect failed, attempting fallback socket...", e);
                 // Fallback method for Android RFCOMM socket reconnect issue
                 try {
-                    BluetoothSocket fallbackSocket = (BluetoothSocket) mmDevice.getClass()
+                    mmFallbackSocket = (BluetoothSocket) mmDevice.getClass()
                             .getMethod("createRfcommSocket", new Class[]{int.class})
                             .invoke(mmDevice, 1);
-                    if (fallbackSocket != null) {
-                        fallbackSocket.connect();
+                    if (mmFallbackSocket != null) {
+                        mmFallbackSocket.connect();
                         synchronized (BluetoothChatService.this) {
                             mConnectThread = null;
                         }
-                        connected(fallbackSocket, mmDevice);
+                        connected(mmFallbackSocket, mmDevice);
                         return;
                     }
                 } catch (Exception e2) {
                     Log.e(TAG, "Fallback socket connect failed as well", e2);
+                    // It was leaked before: an open RFCOMM socket per failed attempt.
+                    closeQuietly(mmFallbackSocket);
+                    mmFallbackSocket = null;
                 }
 
                 try {
@@ -376,11 +400,8 @@ public class BluetoothChatService extends Service {
         }
 
         public void cancel() {
-            try {
-                mmSocket.close();
-            } catch (IOException e) {
-                Log.e(TAG, "close() of socket failed", e);
-            }
+            closeQuietly(mmSocket);
+            closeQuietly(mmFallbackSocket);
         }
     }
 
@@ -393,6 +414,7 @@ public class BluetoothChatService extends Service {
         private final InputStream mmInStream;
         private final OutputStream mmOutStream;
         private final IConsole mmIConsole;
+        private volatile boolean mmCancelled = false;
 
         public ConnectedThread(BluetoothSocket socket) {
             Log.d(TAG, "create ConnectedThread");
@@ -417,16 +439,16 @@ public class BluetoothChatService extends Service {
                 public void onData(IConsole.Data data) {
                     //Log.i(TAG, "mConnectedThread: onData");
                     // Share the sent message back to the UI Activity
-                    mHandler.obtainMessage(Constants.MESSAGE_DATA, -1, -1, data)
-                            .sendToTarget();
+                    Handler h = mHandler;
+                    if (h != null)
+                        h.obtainMessage(Constants.MESSAGE_DATA, -1, -1, data).sendToTarget();
                 }
 
                 @Override
                 public void onError(Exception e) {
+                    // processIO() returns false after this; run() then closes the socket and
+                    // reports the lost connection, whatever the kind of error.
                     Log.e(TAG, "mConnectedThread Error: ", e);
-
-                    if (e instanceof IOException)
-                        connectionLost();
                 }
             }, /* new IConsole.DebugListener() {
                 @Override
@@ -470,6 +492,12 @@ public class BluetoothChatService extends Service {
             Log.i(TAG, "END mConnectedThread");
             // Cancel the persistent notification.
             mNM.cancel(NOTIFICATION);
+            if (!mmCancelled) {
+                // Ended by an error, not by us: before, only an IOException closed the socket
+                // and any other error left it open with the state still CONNECTED.
+                closeQuietly(mmSocket);
+                connectionLost();
+            }
         }
 
 
@@ -486,14 +514,9 @@ public class BluetoothChatService extends Service {
         }
 
         public void cancel() {
+            mmCancelled = true;
             mmIConsole.stop();
-
-            try {
-                mmSocket.close();
-            } catch (IOException e) {
-                Log.e(TAG, "close() of connect socket failed", e);
-            }
-
+            closeQuietly(mmSocket);
         }
     }
 
