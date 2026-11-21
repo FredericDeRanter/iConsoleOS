@@ -31,6 +31,7 @@ import eu.le_tian.iConsoleOS.data.ExerciseProfile;
 import eu.le_tian.iConsoleOS.data.ExerciseProfileData;
 import eu.le_tian.iConsoleOS.data.IConsoleRepository;
 import eu.le_tian.iConsoleOS.data.WorkoutCsv;
+import eu.le_tian.iConsoleOS.workout.ProfileTimeline;
 
 public class IConsoleViewModel extends AndroidViewModel {
 
@@ -43,12 +44,6 @@ public class IConsoleViewModel extends AndroidViewModel {
 
     private MutableLiveData<List<Point>> timeStampsAndLevelsProfile = new MutableLiveData<List<Point>>();
     public List<Point> timeStampsAndLevelsDone = new ArrayList<>();
-    public int relativeLevel;
-
-    public List<Point> timeStampsAndLevels = new ArrayList<Point>();
-
-    //public List<Integer> timeStamps = new ArrayList<Integer>();
-    //public List<Integer> levelForTimeStamps= new ArrayList<Integer>();
     public Exercise runningExercise;
 
     public IConsoleViewModel(Application application) {
@@ -63,133 +58,16 @@ public class IConsoleViewModel extends AndroidViewModel {
     }
 
     public int getMinDuration(List<ExerciseProfileData> exerciseProfileDataList) {
-        int totalDuration = 0;
-        for (ExerciseProfileData temp : exerciseProfileDataList) {
-            totalDuration += temp.getDuration();
-        }
-        return totalDuration;
+        return ProfileTimeline.minDuration(exerciseProfileDataList);
     }
 
-
-    /**
-     * function to create the points of the time and level for a profile
-     * check what to do for quick start.
-     */
+    /** Publishes the selected profile's level timeline (see {@link ProfileTimeline}) for Home and its graph. */
     public void CreateTimeStampsAndLevels(List<ExerciseProfileData> exerciseProfileDataList, int duration, boolean repeat, int profileDefaultLevel) {
-        /**
-         * if no duration set. It's quick start and we just need the level in the exerciseProfile (profileDefaultLevel)
-         * first sum up warmup and cooldown periods. Subtract from total duration; then fill remaining with repeat or extended versions of exercisedata
-         *
-         * duration can not be shorter than the total of all durations
-         * create a temp list and assign it in the end to the MutableLiveData so it can be observed.
-         *
-         * So this list will always have at least one datapoint.
-         *
-         */
-
-        List<Point> tempTimeStampsAndLevels = new ArrayList<Point>();
-
-        int totalWarmUp = 0;
-        int totalCoolDown = 0;
-        int totalExercise = 0;
-        int indexOfFirstExercise = 0;
-        int indexOfFirstCoolDown = 0;
-
-        //first check if duration = 0
-        if (exerciseProfileDataList == null || exerciseProfileDataList.isEmpty()) {
-            //set level to profileDefaultLevel
-            tempTimeStampsAndLevels.add(new Point(0, profileDefaultLevel));
-            //if there is a duration, set a second point to that duration, with the defaultLevel (so that the graph is showing the "whole profile"
-            if (duration > 0) {
-                tempTimeStampsAndLevels.add(new Point(duration, profileDefaultLevel));
-            }
-
-        } else { //the is an exerciseProfile (duration can not be 0)
-            for (int i = 0; i < exerciseProfileDataList.size(); i++) {
-                int dataType = exerciseProfileDataList.get(i).getDataType();
-                if (dataType == 0) {
-                    totalWarmUp += exerciseProfileDataList.get(i).getDuration();
-                    indexOfFirstExercise = i + 1;
-                } else if (dataType == 1) {
-                    totalExercise += exerciseProfileDataList.get(i).getDuration();
-                    indexOfFirstCoolDown = i + 1;
-                } else if (dataType == 2) {
-                    totalCoolDown += exerciseProfileDataList.get(i).getDuration();
-                }
-            }
-            int exerciseDuration = duration - totalCoolDown; // - totalWarmUp;
-            int movingDuration = 0;
-            Log.d(TAG, "totalWarmup: " + totalWarmUp + " | totalExerciseTime: " + totalExercise + " | totalCoolDown:" + totalCoolDown
-                    + " | indexOfFirstExercise: " + indexOfFirstExercise + " | indexOfFirstCoolDown: " + indexOfFirstCoolDown);
-            if (repeat) {
-                for (int i = 0; i < exerciseProfileDataList.size(); i++) {
-                    int dataType = exerciseProfileDataList.get(i).getDataType();
-                    if (dataType == 0) {
-                        //tempDonePoints.add(new Point(0, 10));
-                        tempTimeStampsAndLevels.add(new Point(movingDuration, exerciseProfileDataList.get(i).getRelativeLevel()));
-                        //timeStamps.add(movingDuration);
-                        //levelForTimeStamps.add();
-                        movingDuration += exerciseProfileDataList.get(i).getDuration(); //120
-                    } else if (dataType == 1) {
-                        int tempDuration = exerciseProfileDataList.get(i).getDuration(); //300 / 30 / 300 / 30
-                        int durationLeftForExercise = exerciseDuration - movingDuration; //2400 - 120 - 300 - 30 - 300 - 30 -300 -30
-                        if (durationLeftForExercise > tempDuration) {
-                            tempTimeStampsAndLevels.add(new Point(movingDuration, exerciseProfileDataList.get(i).getRelativeLevel()));
-                            //timeStamps.add(movingDuration);
-                            //levelForTimeStamps.add(exerciseProfileDataList.get(i).getRelativeLevel());
-                            movingDuration += tempDuration;
-                            if (i + 1 == indexOfFirstCoolDown) {
-                                //we go back to the first exercise
-                                i = indexOfFirstExercise - 1;
-                            }
-                        } else {
-                            tempTimeStampsAndLevels.add(new Point(movingDuration, exerciseProfileDataList.get(i).getRelativeLevel()));
-                            //timeStamps.add(movingDuration);
-                            //levelForTimeStamps.add(exerciseProfileDataList.get(i).getRelativeLevel());
-                            movingDuration += durationLeftForExercise;
-                            i = indexOfFirstCoolDown - 1;
-                        }
-                    } else if (dataType == 2) {
-                        tempTimeStampsAndLevels.add(new Point(movingDuration, exerciseProfileDataList.get(i).getRelativeLevel()));
-                        //timeStamps.add(movingDuration);
-                        //levelForTimeStamps.add(exerciseProfileDataList.get(i).getRelativeLevel());
-                        movingDuration += exerciseProfileDataList.get(i).getDuration();
-                    }
-                }
-            } else {
-                for (int i = 0; i < exerciseProfileDataList.size(); i++) {
-                    int dataType = exerciseProfileDataList.get(i).getDataType();
-                    if (dataType == 0) {
-                        tempTimeStampsAndLevels.add(new Point(movingDuration, exerciseProfileDataList.get(i).getRelativeLevel()));
-                        //timeStamps.add(movingDuration);
-                        //levelForTimeStamps.add(exerciseProfileDataList.get(i).getRelativeLevel());
-                        movingDuration += exerciseProfileDataList.get(i).getDuration();
-                    } else if (dataType == 1) {
-                        int tempDuration = exerciseProfileDataList.get(i).getDuration();
-                        int durationLeftForExercise = exerciseDuration - movingDuration;
-                        int actualDuration = 0;
-                        if (i + 1 == indexOfFirstCoolDown) {
-                            actualDuration = durationLeftForExercise;
-                        } else {
-                            int totalDurationForExercise = exerciseDuration - totalWarmUp;
-                            double factor = (double) totalDurationForExercise / totalExercise;
-                            actualDuration = (int) (tempDuration * factor);
-                        }
-                        tempTimeStampsAndLevels.add(new Point(movingDuration, exerciseProfileDataList.get(i).getRelativeLevel()));
-                        //timeStamps.add(movingDuration);
-                        //levelForTimeStamps.add(exerciseProfileDataList.get(i).getRelativeLevel());
-                        movingDuration += actualDuration;
-                    } else if (dataType == 2) {
-                        tempTimeStampsAndLevels.add(new Point(movingDuration, exerciseProfileDataList.get(i).getRelativeLevel()));
-                        //timeStamps.add(movingDuration);
-                        //levelForTimeStamps.add(exerciseProfileDataList.get(i).getRelativeLevel());
-                        movingDuration += exerciseProfileDataList.get(i).getDuration();
-                    }
-                }
-            }
-        }
-        Log.d(TAG, "timestamps and Levels: " + tempTimeStampsAndLevels.toString());
-        timeStampsAndLevelsProfile.setValue(tempTimeStampsAndLevels);
+        List<Point> points = new ArrayList<>();
+        for (ProfileTimeline.Step step : ProfileTimeline.build(exerciseProfileDataList, duration, repeat, profileDefaultLevel))
+            points.add(new Point(step.second, step.level));
+        Log.d(TAG, "timestamps and Levels: " + points);
+        timeStampsAndLevelsProfile.setValue(points);
     }
 
     ExerciseProfile getSelectedExerciseProfile() {

@@ -69,7 +69,8 @@ export JAVA_HOME=/home/frederic/opt/android-studio/jbr
 When you change or add **pure logic**, add JUnit 4 tests under
 `app/src/test/java/eu/le_tian/iConsoleOS/...` (mirroring the package). Existing ones cover the
 `IConsole` protocol, `SampleCodec`, `WorkoutSummary`/`RideMetrics`, `WorkoutCsv`, `ProgressStats`,
-`BtLog`, `IdlePolicy`, `HeartRateMonitor` and `util/TimeFormat`.
+`BtLog`, `IdlePolicy`, `HeartRateMonitor`, `util/TimeFormat` and `workout/ProfileTimeline`
+(the profile → level timeline; its test also compares with the old implementation).
 
 If logic is tangled with Android classes (`Handler`, `Context`, `LiveData`), prefer extracting a
 small plain-Java helper and testing that, rather than adding Robolectric or mocking frameworks
