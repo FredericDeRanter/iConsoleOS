@@ -36,10 +36,24 @@ public class WorkoutSummaryTest {
         assertEquals(2000, s.maxPower);
         assertEquals(250, s.avgSpeed);
         assertEquals(300, s.maxSpeed);
-        assertEquals(106, s.avgHR);   // 320 / 3, integer division like before
+        assertEquals(107, s.avgHR);   // 320 / 3, rounded
         assertEquals(120, s.maxHR);
         assertEquals(70, s.avgRPM);
         assertEquals(80, s.maxRPM);
+    }
+
+    @Test
+    public void averagesAreTimeWeighted() {
+        // A burst of samples in second 1 doesn't count more than second 0.
+        WorkoutSummary s = WorkoutSummary.of(Arrays.asList(
+                sample(0, 1000, 200, 0, 0, 0, 60),
+                sample(1, 3000, 300, 1, 0, 0, 80),
+                sample(1, 3000, 300, 1, 0, 0, 80),
+                sample(1, 3000, 300, 1, 0, 0, 80)));
+        assertEquals(2000, s.avgPower);
+        assertEquals(250, s.avgSpeed);
+        assertEquals(70, s.avgRPM);
+        assertEquals("no heart rate measured", 0, s.avgHR);
     }
 
     @Test

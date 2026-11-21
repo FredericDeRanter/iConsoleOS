@@ -47,6 +47,10 @@ public interface ExerciseDAO {
     @Query("SELECT * FROM Exercise WHERE exerciseID = :exerciseID")
     Exercise getExerciseByIDNotLive(long exerciseID);
 
+    /** Rides that still have compacted samples but no metrics of the current version. */
+    @Query("SELECT exerciseID FROM Exercise WHERE metricsVersion < :version AND exerciseID IN (SELECT exerciseID FROM ExerciseSamples)")
+    List<Long> getExerciseIDsNeedingMetrics(int version);
+
     @Query("SELECT * FROM Exercise WHERE summarized = 0")
     List<Exercise> getUnsummarizedExercisesNotLive();
 

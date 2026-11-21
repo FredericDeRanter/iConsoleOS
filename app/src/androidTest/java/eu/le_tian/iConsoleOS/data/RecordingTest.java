@@ -56,8 +56,12 @@ public class RecordingTest {
         assertNotNull(summary);
         assertTrue(summary.isSummarized());
         assertEquals((n - 1) / 2, summary.getTotalDuration());   // last sample's timestamp
-        assertEquals(1000 + (n - 1) / 2, summary.getAvgPower());  // average of 1000..1499 (integer)
+        assertEquals(1250, summary.getAvgPower());  // average of 1000..1499 = 1249.5, rounded
         assertEquals(1000 + n - 1, summary.getMaxPower());
+        // Ride metrics are filled in at Stop too (250 s: NP yes, no 5-minute best yet).
+        assertEquals(RideMetrics.VERSION, summary.getMetricsVersion());
+        assertTrue(summary.getNormPower() > summary.getAvgPower());
+        assertEquals(0, summary.getBest5min());
 
         // Everything was compacted: no loose rows, all samples in the blob, in recording order.
         List<ExerciseData> stored = repo.getExerciseDataNotLive(summary.getExerciseID()).get(10, TimeUnit.SECONDS);

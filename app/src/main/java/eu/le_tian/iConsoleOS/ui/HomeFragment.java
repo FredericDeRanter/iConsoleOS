@@ -1172,11 +1172,24 @@ public class HomeFragment extends Fragment {
         double avgPowerW = summary.getAvgPower() / 10.0;
         double maxPowerW = summary.getMaxPower() / 10.0;
 
+        double energyKJ = avgPowerW * durSeconds / 1000.0;
+
+        StringBuilder efforts = new StringBuilder();
+        if (summary.getNormPower() > 0)
+            efforts.append(String.format(Locale.US, "Normalized Power: %.0f W\n", summary.getNormPower() / 10.0));
+        int[] bests = {summary.getBest5min(), summary.getBest20min(), summary.getBest60min()};
+        String[] labels = {"5 min", "20 min", "60 min"};
+        for (int i = 0; i < bests.length; i++) {
+            if (bests[i] > 0)
+                efforts.append(String.format(Locale.US, "Best %s: %.0f W\n", labels[i], bests[i] / 10.0));
+        }
+
         String message = String.format(Locale.US,
                 "Profile: %s\n\n" +
                 "Duration: %s\n" +
                 "Distance: %.1f km\n" +
-                "Calories: %d kcal\n\n" +
+                "Calories: %d kcal  |  Energy: %.0f kJ\n\n" +
+                "%s" +
                 "Avg Power: %.1f W  |  Max Power: %.1f W\n" +
                 "Avg Speed: %.1f km/h  |  Max Speed: %.1f km/h\n" +
                 "Avg HR: %d bpm  |  Max HR: %d bpm\n" +
@@ -1184,7 +1197,8 @@ public class HomeFragment extends Fragment {
                 summary.getExProfileName(),
                 durationStr,
                 distKm,
-                summary.getTotalCalories(),
+                summary.getTotalCalories(), energyKJ,
+                efforts.length() > 0 ? efforts + "\n" : "",
                 avgPowerW, maxPowerW,
                 avgSpeedKm, maxSpeedKm,
                 summary.getAvgHR(), summary.getMaxHR(),

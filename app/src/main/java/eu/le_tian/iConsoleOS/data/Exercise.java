@@ -26,6 +26,13 @@ public class Exercise {
     private int avgRPM;
     private int maxRPM;
 
+    // DB v9, see RideMetrics. 0 = unknown (rides whose samples are gone, or shorter than the window).
+    private int normPower;      // Normalized Power * 10
+    private int best5min;       // best 5-minute average power * 10
+    private int best20min;
+    private int best60min;
+    private int metricsVersion; // RideMetrics.VERSION these were computed with, 0 = never
+
     public Exercise(long exerciseID, long exStartDateTime, long exStopDateTime, String exProfileName, long userParentID) {
         this.exerciseID = exerciseID;
         this.exStartDateTime = exStartDateTime;
@@ -193,5 +200,45 @@ public class Exercise {
 
     public void setMaxRPM(int maxRPM) {
         this.maxRPM = maxRPM;
+    }
+
+    public int getNormPower() {
+        return normPower;
+    }
+
+    public void setNormPower(int normPower) {
+        this.normPower = normPower;
+    }
+
+    public int getBest5min() {
+        return best5min;
+    }
+
+    public void setBest5min(int best5min) {
+        this.best5min = best5min;
+    }
+
+    public int getBest20min() {
+        return best20min;
+    }
+
+    public void setBest20min(int best20min) {
+        this.best20min = best20min;
+    }
+
+    public int getBest60min() {
+        return best60min;
+    }
+
+    public void setBest60min(int best60min) {
+        this.best60min = best60min;
+    }
+
+    public int getMetricsVersion() {
+        return metricsVersion;
+    }
+
+    public void setMetricsVersion(int metricsVersion) {
+        this.metricsVersion = metricsVersion;
     }
 }

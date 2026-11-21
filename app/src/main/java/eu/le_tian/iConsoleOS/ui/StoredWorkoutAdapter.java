@@ -80,11 +80,13 @@ public class StoredWorkoutAdapter extends RecyclerView.Adapter<StoredWorkoutAdap
                 double distKm = exercise.getTotalDistance() / 10.0;
                 double avgSpeedKm = exercise.getAvgSpeed() / 10.0;
 
+                String np = exercise.getNormPower() > 0
+                        ? String.format(Locale.US, "  |  NP: %.0f W", exercise.getNormPower() / 10.0) : "";
                 String details = String.format(Locale.US,
                         "Duration: %s  |  Distance: %.1f km  |  Calories: %d kcal\n" +
-                        "Avg Power: %d W  |  Avg Speed: %.1f km/h  |  Avg HR: %d bpm  |  Avg RPM: %d",
+                        "Avg Power: %.1f W%s  |  Avg Speed: %.1f km/h  |  Avg HR: %d bpm  |  Avg RPM: %d",
                         durationStr, distKm, exercise.getTotalCalories(),
-                        exercise.getAvgPower(), avgSpeedKm, exercise.getAvgHR(), exercise.getAvgRPM());
+                        exercise.getAvgPower() / 10.0, np, avgSpeedKm, exercise.getAvgHR(), exercise.getAvgRPM());
                 tvWorkoutDetails.setText(details);
             } else {
                 tvWorkoutStatus.setText("RAW DATA");

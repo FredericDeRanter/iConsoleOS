@@ -125,6 +125,12 @@ MainActivity ── starts ──> BluetoothChatService (Service)
   `getExerciseDataNotLive`. `SampleCodec` versions are forever: add a new version, never change one.
 - Summaries (`WorkoutSummary`) are written once; never overwrite an existing summary, because older
   builds deleted the samples it was computed from.
+  Averages are time-weighted per second (`RideMetrics`, DB v9 onwards); older rides keep their
+  per-sample averages.
+- Ride metrics (`RideMetrics`: Normalized Power, best 5/20/60-min power; DB v9 columns, 0 =
+  unknown) are set on Stop, and by "Compact Data" for older rides that still have their samples
+  (only when the samples cover ≥95% of the summarized duration). `metricsVersion` records which
+  `RideMetrics.VERSION` computed them: bump it when a calculation changes.
 - Backup/restore (Settings): `data/DatabaseBackup` via the system file picker (SAF), no storage
   permissions. Backup = checkpoint(TRUNCATE) + copy + check the WAL stayed empty, then
   integrity-check and SHA-256 compare. Restore checks the file (version 5..`IConsoleDatabase.VERSION`),

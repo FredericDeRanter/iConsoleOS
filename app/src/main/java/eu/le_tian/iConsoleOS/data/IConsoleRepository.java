@@ -413,23 +413,30 @@ public class IConsoleRepository {
             }
 
             Exercise exercise = exerciseDAO.getExerciseByIDNotLive(exerciseID);
+            if (exercise == null)
+                return null;
+            boolean changed = false;
             // Never overwrite an existing summary: its samples may be gone (deleted by older builds).
-            if (exercise != null && !exercise.isSummarized()) {
+            if (!exercise.isSummarized()) {
                 WorkoutSummary summary = WorkoutSummary.of(all);
                 if (summary != null)
                     summary.applyTo(exercise);
                 exercise.setExStopDateTime(stopTime != null ? stopTime
                         : exercise.getExStartDateTime() + exercise.getTotalDuration() * 1000);
                 exercise.setSummarized(true);
-                exerciseDAO.update(exercise);
+                changed = true;
             }
+            changed |= RideMetrics.fillIn(exercise, all);
+            if (changed)
+                exerciseDAO.update(exercise);
             return exercise;
         });
     }
 
     /**
-     * Compacts every workout that still has sample rows, then VACUUMs so the file actually
-     * shrinks (SQLite keeps freed pages otherwise).
+     * Compacts every workout that still has sample rows, computes missing ride metrics for
+     * compacted workouts, then VACUUMs so the file actually shrinks (SQLite keeps freed pages
+     * otherwise).
      *
      * @return number of workouts compacted
      * @throws IOException (wrapped in the Future) if there's not enough free space to VACUUM;
@@ -443,6 +450,11 @@ public class IConsoleRepository {
                     continue; // still recording: Stop will summarize and compact it
                 compactExercise(id, null);
                 count++;
+            }
+            for (long id : exerciseDAO.getExerciseIDsNeedingMetrics(RideMetrics.VERSION)) {
+                if (id == sRecordingExerciseID)
+                    continue;
+                compactExercise(id, null); // no rows left: only fills in the metrics
             }
             vacuum(context);
             return count;

@@ -17,7 +17,7 @@ import java.util.concurrent.Executors;
 @Database(entities = {User.class, Settings.class, Exercise.class, ExerciseData.class, ExerciseProfile.class, ExerciseProfileData.class, ExerciseSamples.class}, version = IConsoleDatabase.VERSION)
 public abstract class IConsoleDatabase extends RoomDatabase {
     /** Bump together with a new Migration and the exported schema in app/schemas. */
-    public static final int VERSION = 8;
+    public static final int VERSION = 9;
 
     public abstract UserDao userDao();
 
@@ -74,13 +74,26 @@ public abstract class IConsoleDatabase extends RoomDatabase {
         }
     };
 
+    static final Migration MIGRATION_8_9 = new Migration(8, 9) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            // Ride metrics (RideMetrics). 0 = unknown; filled in on Stop, and by "Compact data"
+            // for older rides that still have their samples.
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN normPower INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN best5min INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN best20min INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN best60min INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE Exercise ADD COLUMN metricsVersion INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
     static IConsoleDatabase getDatabase(final Context context) {
         if (INSTANCE == null) {
             synchronized (IConsoleDatabase.class) {
                 if (INSTANCE == null) {
                     Log.v(TAG, "init db");
                     INSTANCE = Room.databaseBuilder(context.getApplicationContext(), IConsoleDatabase.class, "IConsoleDB")
-                            .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                            .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                             .addCallback(rdbc)
                             .build();
                 }
