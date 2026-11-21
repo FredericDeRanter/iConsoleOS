@@ -14,7 +14,6 @@ numberPicker = "2.4.13"
 opencsv = "5.12.0"
 recyclerviewSelection = "1.2.0"
 room = "2.8.5"
-scrollablenumberpicker = "0.2.2"
 
 [libraries]
 annotation = { group = "androidx.annotation", name = "annotation", version.ref = "annotation" }
@@ -35,7 +34,6 @@ recyclerview-selection = { group = "androidx.recyclerview", name = "recyclerview
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
-scrollablenumberpicker = { group = "com.github.michaelmuenzer", name = "ScrollableNumberPicker", version.ref = "scrollablenumberpicker" }
 
 [plugins]
 foojay-resolver = { id = "org.gradle.toolchains.foojay-resolver-convention", version.ref = "gradleToolchainsFoojayResolverConvention" }

@@ -22,10 +22,17 @@ real hardware.
 |---|---|
 | `:app` | The application. |
 | `:boxedverticalseekbar` | Vendored third-party vertical seekbar widget (`abak.tr.com.boxedverticalseekbar`). |
+| `:scrollablenumberpicker` | Vendored `ScrollableNumberPicker` 0.2.2, moved to AndroidX (used by `CustomTimePicker2`); see its README. |
 | `:android_antlib_4-14-0` | Wraps the prebuilt Dynastream ANT radio library `android_antlib_4-14-0.jar`. Don't edit it. |
 
 Dependency versions live in `gradle/libs.versions.toml` (version catalog, referenced as
-`libs.*`). JitPack is a configured repository and is needed for `ScrollableNumberPicker`.
+`libs.*`). JitPack is a configured repository (no dependency uses it right now).
+
+The toolchain no longer runs Jetifier, so **any dependency built against the old support library
+(`android.support.*`) compiles but crashes at runtime** with `NoClassDefFoundError`. Check new
+dependencies for that. To check an APK: `strings -a classes*.dex | grep -o 'Landroid/support/[A-Za-z0-9/$_]*' | sort -u`
+should only list the AIDL classes `androidx.core` ships itself (`INotificationSideChannel`,
+`IResultReceiver*`, `ResultReceiver`, `*Parcelizer`).
 
 ## Building and testing
 

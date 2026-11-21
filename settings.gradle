@@ -1,6 +1,6 @@
 plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
 }
-include ':app', ':android_antlib_4-14-0', ':boxedverticalseekbar'
+include ':app', ':android_antlib_4-14-0', ':boxedverticalseekbar', ':scrollablenumberpicker'
 
 rootProject.name = 'iConsoleOS'

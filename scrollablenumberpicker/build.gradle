@@ -1,0 +1,26 @@
+apply plugin: 'com.android.library'
+
+// Vendored copy of com.github.michaelmuenzer:ScrollableNumberPicker:0.2.2, see README.md.
+android {
+    namespace 'com.michaelmuenzer.android.scrollablennumberpicker'
+    compileSdk 37
+
+    defaultConfig {
+        minSdk 21
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation libs.annotation
+    implementation libs.appcompat
+}

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <bool name="default_scrollEnabled">false</bool>
+    <color name="black">#ff000000</color>
+    <color name="white">#ffffffff</color>
+    <declare-styleable name="ScrollableNumberPicker"><attr format="integer" name="snp_buttonIconDown"/><attr format="integer" name="snp_buttonIconUp"/><attr format="integer" name="snp_buttonIconLeft"/><attr format="integer" name="snp_buttonIconRight"/><attr format="integer" name="snp_buttonBackgroundTintSelector"/><attr format="float" name="snp_buttonTouchScaleFactor"/><attr format="dimension" name="snp_buttonPaddingLeft"/><attr format="dimension" name="snp_buttonPaddingRight"/><attr format="dimension" name="snp_buttonPaddingTop"/><attr format="dimension" name="snp_buttonPaddingBottom"/><attr format="integer" name="snp_value"/><attr format="integer" name="snp_maxValue"/><attr format="integer" name="snp_minValue"/><attr format="integer" name="snp_stepSize"/><attr format="dimension" name="snp_value_text_size"/><attr format="color" name="snp_value_text_color"/><attr format="reference" name="snp_value_text_appearance"/><attr format="integer" name="snp_updateInterval"/><attr format="boolean" name="snp_scrollEnabled"/><attr name="snp_orientation">
+            <enum name="horizontal" value="0"/>
+            <enum name="vertical" value="1"/>
+        </attr><attr format="dimension" name="snp_valueMarginStart"/><attr format="dimension" name="snp_valueMarginEnd"/></declare-styleable>
+    <dimen name="default_button_padding_bottom">0dp</dimen>
+    <dimen name="default_button_padding_left">0dp</dimen>
+    <dimen name="default_button_padding_right">0dp</dimen>
+    <dimen name="default_button_padding_top">0dp</dimen>
+    <item format="float" name="default_button_scale_factor" type="dimen">1.0</item>
+    <dimen name="default_button_size">24dp</dimen>
+    <dimen name="default_scroll_offset">4dp</dimen>
+    <dimen name="default_scroll_repeat_length">25dp</dimen>
+    <dimen name="default_value_margin_end">0dp</dimen>
+    <dimen name="default_value_margin_start">0dp</dimen>
+    <integer name="default_maxValue">999</integer>
+    <integer name="default_minValue">0</integer>
+    <integer name="default_stepSize">1</integer>
+    <integer name="default_updateInterval">100</integer>
+    <integer name="default_value">0</integer>
+    <string name="desc_button_decrease">decrease</string>
+    <string name="desc_button_increase">increase</string>
+</resources>
