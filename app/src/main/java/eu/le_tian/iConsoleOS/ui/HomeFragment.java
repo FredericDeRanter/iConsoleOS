@@ -46,6 +46,8 @@ import eu.le_tian.iConsoleOS.communication.BtLog;
 import eu.le_tian.iConsoleOS.communication.BtSettings;
 import eu.le_tian.iConsoleOS.communication.HeartRateMonitor;
 import eu.le_tian.iConsoleOS.util.TimeFormat;
+import eu.le_tian.iConsoleOS.workout.ProfileTimeline;
+import eu.le_tian.iConsoleOS.workout.WorkoutSession;
 import eu.le_tian.iConsoleOS.communication.ChannelService;
 import eu.le_tian.iConsoleOS.communication.Constants;
 import eu.le_tian.iConsoleOS.DeviceListActivity;
@@ -105,20 +107,13 @@ public class HomeFragment extends Fragment {
     /**
      * running profile data
      */
-    private int selectedDuration;
-    private int runningIndex = 0; //variable to follow the time index of the profile that is running.
-    //private int doneIndex = 0; //variable to follow the time index of the done profile.
-    private boolean runningExercise = false;
-    private boolean paused = false;
-    private long secondsTotalPaused = 0;
-    private long startPause = 0;
-    private long stopPause = 0;
-    private List<Point> timeStampAndLevelProfile = new ArrayList<Point>();
-    //private List<Point> timestampAndLevelBusy = new ArrayList<Point>();
-    private int extraLevel = 0;
-    /** Level last sent to the bike. The source of truth; the views only show it (they are
-     *  recreated when you come back from another screen). */
-    private int mCurrentLevel = 1;
+    /**
+     * The ride: running/paused, profile position, levels, ridden line (see WorkoutSession). The
+     * source of truth; the views only show it (they are recreated when you come back from another
+     * screen).
+     */
+    private final WorkoutSession mSession = new WorkoutSession(
+            level -> mChatService != null && mChatService.setLevel(level));
     private long exerciseIDbusy;
 
     /**
@@ -142,18 +137,11 @@ public class HomeFragment extends Fragment {
 
                     // The bike can still answer a READ after Stop was pressed. Without this
                     // guard that sample was stored under the already summarized exercise.
-                    if (!runningExercise || IConsoleViewModel.runningExercise == null)
+                    if (!mSession.isRunning() || IConsoleViewModel.runningExercise == null)
                         break;
 
-                    if (paused) {
-                        if (startPause == 0) {
-                            startPause = data.mTime;
-                            Log.d(TAG, "Start pause: " + startPause);
-                        } else {
-                            stopPause = data.mTime;
-                            Log.d(TAG, "pause continued: " + stopPause);
-                        }
-                    } else {
+                    WorkoutSession.Tick tick = mSession.onSample(data.mTime);
+                    if (tick != null) { // null while paused: nothing recorded
                         if (mChannelService != null) { // null until the ANT+ service is bound
                             mChannelService.setSpeed(data.mSpeed10 / 10.0);
                             mChannelService.setPower(data.mPower10 / 10);
@@ -171,9 +159,9 @@ public class HomeFragment extends Fragment {
                             binding.heartBeat2.setDurationBasedOnBPM(heartRate);
                             binding.heartLabel.setText(watchHR > 0 ? "Heart (watch)" : "Heart");
                         }
-                        long timeInExercise = data.mTime - secondsTotalPaused;
-                        SetTimeDisplay(timeInExercise, selectedDuration);
-                        ExerciseData exerciseData = new ExerciseData(0, data.mPower10, data.mSpeed10, data.mDistance10, data.mCalories, heartRate, data.mRPM, timeInExercise, 0 /* parent ID filled in when stored */);
+                        showTime(TimeFormat.clock(tick.displaySeconds));
+                        showRideLevel();
+                        ExerciseData exerciseData = new ExerciseData(0, data.mPower10, data.mSpeed10, data.mDistance10, data.mCalories, heartRate, data.mRPM, tick.rideSeconds, 0 /* parent ID filled in when stored */);
                         IConsoleViewModel.insertExerciseData(exerciseData);
                     }
                     //binding.Time.setText(String.format("%s", data.getTimeStr()));
@@ -200,7 +188,7 @@ public class HomeFragment extends Fragment {
                     break;
                 case Constants.MESSAGE_AUTO_STOP:
                     // Bike idle with a workout still running (forgotten): finish it properly.
-                    if (runningExercise)
+                    if (mSession.isRunning())
                         stopAndSummarizeExercise();
                     break;
                 case Constants.MESSAGE_BT_STUCK:
@@ -217,142 +205,27 @@ public class HomeFragment extends Fragment {
     };
     private boolean mChannelServiceBound = false;
 
-    /**
-     * function to show the time during an exercise and to set the level if a profile is running.
-     * and to draw the graph
-     * return value not used at the moment
-     */
-
-    private boolean SetTimeDisplay(long timePassed, int duration) {
-        /**
-         * timeStampAndLevelProfile has always at least one data point by selecting any profile.
-         *
-         * */
-        //done: adjust 1 to the profile extra level setting for if no profiledata
-        int currentLevel = extraLevel + timeStampAndLevelProfile.get(0).y;  //if no profile is running; this is the default value.
-
-        if (duration == 0 && timePassed > 0) {
-            //no duration set, so just need to convert time passed
-            showTime(TimeFormat.clock(timePassed));
-            //DONE: add points to IConsoleViewModel.timeStampsAndLevelsDone
-            //when selecting any profile, something is added in pointsAll always. That's enough to start drawing the graph (and keep drawing)
-            //check previous level in graph, if same as current, do nothing. Else add point to done.
-
-            //set the level in the beginning of the exercise
-            if (timePassed < 2) {
-                setLevel(currentLevel);
-            }
-
-            if (IConsoleViewModel.timeStampsAndLevelsDone.isEmpty()) {
-                IConsoleViewModel.timeStampsAndLevelsDone.add(new Point((int) timePassed, currentLevel));
-            } else {
-                //check if level has changed from previous point
-                int lastIndex = IConsoleViewModel.timeStampsAndLevelsDone.size() - 1;
-                if (IConsoleViewModel.timeStampsAndLevelsDone.get(lastIndex).y != currentLevel) {
-                    //different level add another point
-                    IConsoleViewModel.timeStampsAndLevelsDone.add(new Point((int) timePassed, currentLevel));
-                } else {
-                    //change the last point
-                    IConsoleViewModel.timeStampsAndLevelsDone.set(lastIndex, new Point((int) timePassed, currentLevel));
-                }
-            }
-
-        } else if (duration > 0 && timePassed == 0) {
-            //setting duration, but not running yet
-            showTime(TimeFormat.clock(duration));
-            //not running so clear the timeStampsAndLevelsDone
-            IConsoleViewModel.timeStampsAndLevelsDone.clear();
-
-        } else if (duration > 0 && timePassed > 0) {
-            //running a profile with duration
-
-            long leftTime = duration - timePassed;
-            showTime(TimeFormat.clock(leftTime));
-            //set the level according to the profile
-            //Should be done: what if no profile data (only duration)?
-            //DONE: create level adjuster variable (set with ++,--, + and - button
-
-            /**
-             * options:
-             *  - runningIndex is last point in profile: just set currentlevel to runningindex + extralevel.
-             *  - runningIndex is within profile and not last point:
-             *      - check if the passed time is greater or equal than next runningIndex, if so set new runningIndex, set new level
-             *      - else currentlevel is runningIndex + extraLevel
-             *
-             *      Add safeguard to see if runningLevel is within size of timeStampAndLevelProfile and if not, then just set to last item of timeStampAndLevelProfile (if it's not empty)
-             * */
-            if (leftTime > 0) {
-                if (runningIndex < timeStampAndLevelProfile.size()) {
-                    currentLevel = timeStampAndLevelProfile.get(runningIndex).y + extraLevel;
-
-                    //needs changing and setting after this if
-                    if ((runningIndex < timeStampAndLevelProfile.size() - 1) && (timePassed >= timeStampAndLevelProfile.get(runningIndex + 1).x)) {
-                        runningIndex++; //adjust runningIndex to next level.
-                        currentLevel = timeStampAndLevelProfile.get(runningIndex).y + extraLevel;
-                        setLevel(currentLevel);
-                    }
-
-                    //also set level in the first second of the exercise (else the first level is never set)
-                    if (runningIndex == 0 && timePassed < 2) {
-                        setLevel(currentLevel);
-                    }
-
-                } else if (!timeStampAndLevelProfile.isEmpty()) { //next two should never happen
-                    Log.e(TAG, "running index went too far?: " + runningIndex + " | size of timeStampAndLevelProfile: " + timeStampAndLevelProfile.size());
-                    runningIndex = timeStampAndLevelProfile.size() - 1;
-                    currentLevel = timeStampAndLevelProfile.get(runningIndex).y + extraLevel;
-                } else {
-                    //no idea what to set it to?
-                    Log.e(TAG, "running index: " + runningIndex + " | size of timeStampAndLevelProfile: " + timeStampAndLevelProfile.size());
-                    runningIndex = 0;
-                    currentLevel = 1;
-                }
-
-                Log.d(TAG, "currentLevel " + currentLevel + "| extraLevel: " + extraLevel);
-                if (IConsoleViewModel.timeStampsAndLevelsDone.isEmpty()) {
-                    IConsoleViewModel.timeStampsAndLevelsDone.add(new Point((int) timePassed, currentLevel));
-                } else {
-                    //check if level has changed from previous point
-                    int lastIndex = IConsoleViewModel.timeStampsAndLevelsDone.size() - 1;
-                    if (IConsoleViewModel.timeStampsAndLevelsDone.get(lastIndex).y != currentLevel) {
-                        //different level add another point
-                        IConsoleViewModel.timeStampsAndLevelsDone.add(new Point((int) timePassed, currentLevel));
-                    } else {
-                        //change the last point
-                        IConsoleViewModel.timeStampsAndLevelsDone.set(lastIndex, new Point((int) timePassed, currentLevel));
-                    }
-                }
-            } else if (leftTime <= 0) {
-                //if the exercise is finished running
-                //TODO: decide what to show when exercise is done. Maybe a user setting: if exercise is finished, stop or continue?
-                //exercise is done, but keeps running
-                showTime(TimeFormat.clock(timePassed));
-                //DONE: keep adjusting graph
-
-                //if continue running, add new points to pointsDone. The graph will adjust itself accordingly. (no need to add points to pointAll.
-                //runningIndex-1 is the last index of the profile that was running.
-                //first check if profile is not empty.
-                if (!timeStampAndLevelProfile.isEmpty()) {
-                    currentLevel = timeStampAndLevelProfile.get(runningIndex).y + extraLevel;
-                    int lastIndex = IConsoleViewModel.timeStampsAndLevelsDone.size() - 1;
-                    if (IConsoleViewModel.timeStampsAndLevelsDone.get(lastIndex).y != currentLevel) {
-                        //different level add another point
-                        IConsoleViewModel.timeStampsAndLevelsDone.add(new Point((int) timePassed, currentLevel));
-                    } else {
-                        //change the last point
-                        IConsoleViewModel.timeStampsAndLevelsDone.set(lastIndex, new Point((int) timePassed, currentLevel));
-                    }
-                }
-            }
-        } else if (duration == 0) {
-            //no duration and no running exercise. so just set display to 00:00
-            showTime(TimeFormat.clock(duration));
-            //not running so clear the timeStampsAndLevelsDone
-            IConsoleViewModel.timeStampsAndLevelsDone.clear();
-        }
+    /** Before a ride: the profile's duration (or 0:00) and an empty ridden line. */
+    private void showIdleTime() {
+        showTime(TimeFormat.clock(mSession.idleDisplaySeconds()));
         if (binding != null)
-            binding.homeGraphView.setPointsDone(IConsoleViewModel.timeStampsAndLevelsDone);
-        return false;
+            binding.homeGraphView.setPointsDone(toPoints(mSession.done()));
+    }
+
+    /** The level, the offset from the profile and the ridden line, after a sample or a level change. */
+    private void showRideLevel() {
+        showLevel(mSession.currentLevel());
+        if (binding != null) {
+            binding.homeGraphView.setFutureLevelChange(mSession.extraLevel());
+            binding.homeGraphView.setPointsDone(toPoints(mSession.done()));
+        }
+    }
+
+    private static List<Point> toPoints(List<ProfileTimeline.Step> steps) {
+        List<Point> points = new ArrayList<>(steps.size());
+        for (ProfileTimeline.Step step : steps)
+            points.add(new Point(step.second, step.level));
+        return points;
     }
 
     private void showTime(String text) {
@@ -557,7 +430,7 @@ public class HomeFragment extends Fragment {
              * start countdown when press start and make time buttons go away? (or count up when no time is set)
              * */
             // The profile can't change during a ride; recomputing would clear the graph.
-            if (runningExercise)
+            if (mSession.isRunning())
                 return;
             ExerciseProfile exerciseProfileSelected = IConsoleViewModel.getSelectedExerciseProfile();
             if (exerciseProfileSelected == null)
@@ -567,19 +440,20 @@ public class HomeFragment extends Fragment {
 
             if (durationInProfile > 0) {
                 //DONE: what if no exerciseProfiledata is set?: just set one point to the defaultProfileLevel
-                SetTimeDisplay(0, durationInProfile);
-                selectedDuration = durationInProfile;
-                IConsoleViewModel.CreateTimeStampsAndLevels(exerciseProfileDataList, selectedDuration, exerciseProfileSelected.isRepeatToFill(), profileDefaultLevel);
+                mSession.setDuration(durationInProfile);
+                showIdleTime();
+                IConsoleViewModel.CreateTimeStampsAndLevels(exerciseProfileDataList, durationInProfile, exerciseProfileSelected.isRepeatToFill(), profileDefaultLevel);
             } else if ((exerciseProfileDataList != null) && (exerciseProfileDataList.size() > 0)) {
                 /** profiledata is not empty, so need to calculate duration*/
-                selectedDuration = IConsoleViewModel.getMinDuration(exerciseProfileDataList);
-                SetTimeDisplay(0, selectedDuration);
-                IConsoleViewModel.CreateTimeStampsAndLevels(exerciseProfileDataList, selectedDuration, exerciseProfileSelected.isRepeatToFill(), profileDefaultLevel);
+                int duration = IConsoleViewModel.getMinDuration(exerciseProfileDataList);
+                mSession.setDuration(duration);
+                showIdleTime();
+                IConsoleViewModel.CreateTimeStampsAndLevels(exerciseProfileDataList, duration, exerciseProfileSelected.isRepeatToFill(), profileDefaultLevel);
                 Log.d(TAG, "DataList:" + exerciseProfileDataList.size() + "  no duration ");
             } else {
                 /** no profiledata and no duration: quick start */
-                showTime(String.format("%02d:%02d", 0, 0));
-                selectedDuration = durationInProfile;
+                mSession.setDuration(0);
+                showIdleTime();
                 //DONE: adjust the CreateTimeStampsAndLevels to add the defaultLevel for the quickstartprofile
                 IConsoleViewModel.CreateTimeStampsAndLevels(null, 0, true, profileDefaultLevel);
                 Log.d(TAG, "no profiledata and duration:");
@@ -593,15 +467,19 @@ public class HomeFragment extends Fragment {
         });
 
         //observe the profile for drawing the graph
-        IConsoleViewModel.getTimeStampsAndLevelsProfile().observe(getViewLifecycleOwner(), timeStampAndLevelProfile -> {
-            binding.homeGraphView.setPointsAll(timeStampAndLevelProfile);
-            this.timeStampAndLevelProfile = timeStampAndLevelProfile;
+        IConsoleViewModel.getTimeStampsAndLevelsProfile().observe(getViewLifecycleOwner(), timeline -> {
+            // Also redelivered to a new view during a ride: draw it; the session keeps its profile.
+            binding.homeGraphView.setPointsAll(timeline);
+            List<ProfileTimeline.Step> steps = new ArrayList<>(timeline.size());
+            for (Point p : timeline)
+                steps.add(new ProfileTimeline.Step(p.x, p.y));
+            mSession.setProfile(steps);
         });
 
         binding.homeProfileSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (runningExercise)
+                if (mSession.isRunning())
                     return; // the spinner is disabled during a ride; ignore programmatic selections
                 /**set the selectedProfileID in viewmodel to trigger a transformer switchmap on the livedata of exerciseProfileData */
                 ExerciseProfile exerciseProfileSelected = adapter.getItem(position);
@@ -623,14 +501,13 @@ public class HomeFragment extends Fragment {
 
     /** Shows the state of a ride that was running while another screen was shown. */
     private void restoreRideState() {
-        showLevel(mCurrentLevel);
-        if (!runningExercise || binding == null)
+        showLevel(mSession.currentLevel());
+        if (!mSession.isRunning() || binding == null)
             return;
-        changeStartButton(paused ? 1 : 2);
+        changeStartButton(mSession.isPaused() ? 1 : 2);
         binding.homeProfileSpinner.setEnabled(false);
         binding.heartBeat2.start();
-        binding.homeGraphView.setFutureLevelChange(extraLevel);
-        binding.homeGraphView.setPointsDone(IConsoleViewModel.timeStampsAndLevelsDone);
+        showRideLevel();
     }
 
     void doBindService() {
@@ -700,70 +577,34 @@ public class HomeFragment extends Fragment {
         binding.buttonStart.setOnClickListener(v -> {
             //DONE: make a running boolean or state int (0: stopped, 1: running, 2: paused) mchatservice needs to be not null to be able to communicate.
             if (mChatService != null) {
-                if (!runningExercise) {
+                if (!mSession.isRunning()) {
                     if (IConsoleViewModel.selectedExerciseProfile == null) {
                         Snackbar.make(v, "Select a profile first", Snackbar.LENGTH_LONG).show();
                         return;
                     }
-                    //start running
-                    runningExercise = true;
+                    mSession.start();
                     mChatService.startIConsole();
                     keepScreenOn(true);
-                    //running index to 0 since starting new exercise. need to create way to pauze exercise.
-                    runningIndex = 0;
-                    //init variables to be able to pause
-                    paused = false;
-                    secondsTotalPaused = 0;
-                    extraLevel = 0;
-                    //clear the progress
-                    List<Point> tempEmpty = new ArrayList<>();
-                    binding.homeGraphView.setPointsDone(tempEmpty);
-                    //timestampAndLevelBusy.clear();
+                    binding.homeGraphView.setPointsDone(new ArrayList<>()); // clear the progress
 
-                    /**
-                     * Start recording an exercise:
-                     * */
                     //TODO: change the user ID to the selected user
                     Exercise exercise = new Exercise(0, new Date().getTime(), 0, IConsoleViewModel.selectedExerciseProfile.getExerciseProfileName(), 1);
                     IConsoleViewModel.startExercise(exercise);
 
-                    /** change to pauze button*/
-                    changeStartButton(2);
-
-                    /** disable profile selector **/
+                    changeStartButton(2); // pause button
                     binding.homeProfileSpinner.setEnabled(false);
-                    Log.d(TAG, "exercise started");
-
-                    /** start the heart beat*/
                     binding.heartBeat2.start();
-
-                } else if (paused) {
-
-                    /**
-                     * It's paused, now start running again.
-                     * calculate total time it was paused
-                     * **/
-                    long tempPaused = stopPause - startPause;
-                    //TODO: check if the +1 is needed
-                    secondsTotalPaused += tempPaused + 1;
-                    paused = false;
-                    startPause = 0;
-                    stopPause = 0;
+                    Log.d(TAG, "exercise started");
+                } else if (mSession.isPaused()) {
+                    // Continue: the bike's seconds while paused are left out of the ride time.
+                    mSession.resume();
                     changeStartButton(2);
-
-                    Log.d(TAG, "exercise was paused, starting again, second paused: " + tempPaused);
-
+                    Log.d(TAG, "exercise continued");
                 } else {
-                    /** How to pause:
-                     * stop recording by checking paused boolean in handler
-                     * keep amount of seconds that nothing happens
-                     * when starting again, substract the paused time from the actual timing. For the rest; the data can continue.
-                     * */
-                    paused = true;
-                    /**Change to blinking run/pauze button (until implemented back to run button*/
-                    //TODO: implement blinking paused/run button
+                    // Pause: samples are not recorded until Start is pressed again.
+                    mSession.pause();
                     changeStartButton(1);
-                    Log.d(TAG, "exercise paused: " + paused);
+                    Log.d(TAG, "exercise paused");
                 }
             }
 
@@ -774,9 +615,9 @@ public class HomeFragment extends Fragment {
          * Stop button action
          * */
         binding.buttonStop.setOnClickListener(v -> {
-            mCurrentLevel = 1;
+            mSession.resetLevel();
             showLevel(1);
-            if (runningExercise) {
+            if (mSession.isRunning()) {
                 stopAndSummarizeExercise();
             }
         });
@@ -834,19 +675,19 @@ public class HomeFragment extends Fragment {
 
 
         binding.plusButton.setOnClickListener(v -> {
-            setLevel(mCurrentLevel + 1);
+            setLevel(mSession.currentLevel() + 1);
         });
 
         binding.plusPlusButton.setOnClickListener(v -> {
-            setLevel(mCurrentLevel + 5);
+            setLevel(mSession.currentLevel() + 5);
         });
 
         binding.minButton.setOnClickListener(v -> {
-            setLevel(mCurrentLevel - 1);
+            setLevel(mSession.currentLevel() - 1);
         });
 
         binding.minMinButton.setOnClickListener(v -> {
-            setLevel(mCurrentLevel - 5);
+            setLevel(mSession.currentLevel() - 5);
         });
 
         binding.levelSeekbar.setOnBoxedPointsChangeListener(new BoxedVertical.OnValuesChangeListener() {
@@ -854,7 +695,7 @@ public class HomeFragment extends Fragment {
             public void onPointsChanged(BoxedVertical boxedPoints, final int value) {
                 //System.out.println(value);
                 Log.v(TAG, "BoxedVertical Changed Value to " + value);
-                if (value != mCurrentLevel) {
+                if (value != mSession.currentLevel()) {
                     setLevel(value);
                 }
             }
@@ -917,28 +758,10 @@ public class HomeFragment extends Fragment {
      * function to set level and adjust the text and bar
      */
     private void setLevel(int newVal) {
-        if (mChatService != null) {
-            //see that value is between 1 and 32
-            if (newVal > 32) {
-                newVal = 32;
-            } else if (newVal < 1) {
-                newVal = 1;
-            }
-            if (!mChatService.setLevel(newVal)) {
-                Log.e(TAG, "setLevel failed");
-            } else {
-                mCurrentLevel = newVal;
-                showLevel(newVal);
-                //check the level in the running profile (if any) and set the extraLevel accordingly
-                if (!timeStampAndLevelProfile.isEmpty()) { //this should never be empty
-                    extraLevel = newVal - timeStampAndLevelProfile.get(runningIndex).y;
-                    Log.d(TAG, "extraLevel set to " + extraLevel + "| newVal: " + newVal + "| level according to profile:" + timeStampAndLevelProfile.get(runningIndex).y + "| runningIndex: " + runningIndex);
-                    //also set it on the graph:
-                    if (binding != null)
-                        binding.homeGraphView.setFutureLevelChange(extraLevel);
-                }
-            }
-        }
+        if (mSession.requestLevel(newVal))
+            showRideLevel();
+        else
+            Log.e(TAG, "setLevel failed");
     }
 
     /**
@@ -971,9 +794,9 @@ public class HomeFragment extends Fragment {
         if (enable) {
             // A fresh connection starts at level 1, but during a ride this is also called on every
             // state refresh (onResume, back from another screen): don't reset the level then.
-            if (!runningExercise)
-                mCurrentLevel = 1;
-            showLevel(mCurrentLevel);
+            if (!mSession.isRunning())
+                mSession.resetLevel();
+            showLevel(mSession.currentLevel());
         }
     }
 
@@ -1081,7 +904,7 @@ public class HomeFragment extends Fragment {
     }
 
     private void stopAndSummarizeExercise() {
-        if (!runningExercise) return;
+        if (!mSession.isRunning()) return;
 
         changeStartButton(1);
         if (mChatService != null) {
@@ -1092,7 +915,7 @@ public class HomeFragment extends Fragment {
             binding.homeProfileSpinner.setEnabled(true);
             binding.heartBeat2.stop();
         }
-        runningExercise = false;
+        mSession.stop();
 
         java.util.concurrent.Future<Exercise> finishing = IConsoleViewModel != null ? IConsoleViewModel.finishExercise() : null;
         if (finishing != null) {
@@ -1172,17 +995,7 @@ public class HomeFragment extends Fragment {
     }
 
     private void resetGraphAndUI() {
-        runningIndex = 0;
-        mCurrentLevel = 1;
-        extraLevel = 0;
-        paused = false;
-        startPause = 0;
-        stopPause = 0;
-        secondsTotalPaused = 0;
-
-        if (IConsoleViewModel != null && IConsoleViewModel.timeStampsAndLevelsDone != null) {
-            IConsoleViewModel.timeStampsAndLevelsDone.clear();
-        }
+        mSession.reset();
         if (getActivity() == null || binding == null) return; // state reset; no view to update
 
         showLevel(1);
@@ -1195,7 +1008,7 @@ public class HomeFragment extends Fragment {
         binding.Heart.setText(String.format(Locale.US, "%d", 0));
         binding.heartBeat2.stop();
 
-        SetTimeDisplay(0, selectedDuration);
+        showIdleTime();
         binding.homeGraphView.resetToStandardSettings();
     }
 

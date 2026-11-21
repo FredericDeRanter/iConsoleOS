@@ -43,7 +43,6 @@ public class IConsoleViewModel extends AndroidViewModel {
     private MutableLiveData<Long> selectedExerciseProfileID = new MutableLiveData<Long>();
 
     private MutableLiveData<List<Point>> timeStampsAndLevelsProfile = new MutableLiveData<List<Point>>();
-    public List<Point> timeStampsAndLevelsDone = new ArrayList<>();
     public Exercise runningExercise;
 
     public IConsoleViewModel(Application application) {

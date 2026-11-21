@@ -69,8 +69,8 @@ export JAVA_HOME=/home/frederic/opt/android-studio/jbr
 When you change or add **pure logic**, add JUnit 4 tests under
 `app/src/test/java/eu/le_tian/iConsoleOS/...` (mirroring the package). Existing ones cover the
 `IConsole` protocol, `SampleCodec`, `WorkoutSummary`/`RideMetrics`, `WorkoutCsv`, `ProgressStats`,
-`BtLog`, `IdlePolicy`, `HeartRateMonitor`, `util/TimeFormat` and `workout/ProfileTimeline`
-(the profile → level timeline; its test also compares with the old implementation).
+`BtLog`, `IdlePolicy`, `HeartRateMonitor`, `util/TimeFormat`, `workout/ProfileTimeline` (its test also compares with the old implementation)
+and `workout/WorkoutSession`.
 
 If logic is tangled with Android classes (`Handler`, `Context`, `LiveData`), prefer extracting a
 small plain-Java helper and testing that, rather than adding Robolectric or mocking frameworks
@@ -142,9 +142,12 @@ MainActivity ── starts ──> BluetoothChatService (Service)
 - `initDb()` seeds default user, settings, and profiles, but its call sites are commented out.
 
 ### `ui/`
-- `HomeFragment` (~1100 lines) is the main screen. It handles connect, start/stop, level control,
-  live graph (`graph/GraphView`), profile execution, and **recording**. Much of the app's
-  behavior lives here.
+- `HomeFragment` (~1000 lines) is the main screen: connect, start/stop, level buttons, live graph
+  (`graph/GraphView`) and recording. The ride's logic is in `workout/` (plain Java, unit tested):
+  `WorkoutSession` (running/paused, paused seconds, profile position, level and the user's offset
+  from the profile, the ridden line) and `ProfileTimeline` (profile → level timeline). The fragment
+  feeds it bike samples (`onSample`) and shows the result; level changes go to the bike through
+  `WorkoutSession.Bike`.
 - `HistoryFragment` covers workout history and summarization. `ExerciseProfileFragment` + adapters are
   the profile editor. `analytics/` is the Progress screen: MPAndroidChart charts per week/month/ride, numbers from
   the plain-Java `ProgressStats` (ISO weeks, duration-weighted averages, trend, bests; unit tested). `SettingsFragment` holds settings.
@@ -184,5 +187,5 @@ MainActivity ── starts ──> BluetoothChatService (Service)
   rules for the background recording service.
 - `WRITE/READ_EXTERNAL_STORAGE` are legacy. CSV export may need SAF/MediaStore on newer Android versions.
 - From the README, still to do: run history view, exporting single runs, multiple users.
-- `HomeFragment` is very large. Extracting recording and profile logic into testable classes is welcome,
-  but do it on its own branch and don't mix it with feature work.
+- `HomeFragment` is still large (connection and view code). Move further logic into `workout/`
+  rather than adding it to the fragment; do refactors on their own branch, not mixed with features.
