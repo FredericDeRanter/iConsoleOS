@@ -10,6 +10,7 @@ import android.content.ServiceConnection;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.os.SystemClock;
 import android.util.Log;
 
 import com.dsi.ant.AntService;
@@ -31,6 +32,14 @@ public class ChannelService extends Service {
     private boolean mBroadcastWanted = false;
     PowerChannelController powerChannelController = null;
     SpeedChannelController speedChannelController = null;
+
+    /** Receive heart rate while the bike is connected (Home), or while searching from Settings. */
+    private boolean mHeartRateForRide = false;
+    private boolean mHeartRateSearch = false;
+    private HeartRateChannelController heartRateChannelController = null;
+    private final HeartRateMonitor mHeartRate = new HeartRateMonitor();
+    /** Device number of the monitor we receive from; 0 until known. */
+    private volatile int mHeartRateDevice = 0;
 
     private ServiceConnection mAntRadioServiceConnection = new ServiceConnection() {
         @Override
@@ -102,12 +111,42 @@ public class ChannelService extends Service {
             }
         }
 
-        /**
-         * Closes all channels currently added.
-         */
-        /** Open the ANT+ channels when {@code on} and the radio allows it, close them otherwise. */
+        /** Open the ANT+ power/speed channels when {@code on} and the radio allows it, close them otherwise. */
         public void setBroadcasting(boolean on) {
             ChannelService.this.setBroadcasting(on);
+        }
+
+        /** Receive ANT+ heart rate during a ride (bike connected and the setting on). */
+        public void setReceivingHeartRate(boolean on) {
+            mHeartRateForRide = on;
+            updateHeartRateChannel();
+        }
+
+        /** Receive ANT+ heart rate for the Settings search, independent of the bike. */
+        public void setHeartRateSearch(boolean on) {
+            mHeartRateSearch = on;
+            updateHeartRateChannel();
+        }
+
+        /** After the paired monitor changed in Settings: listen again with the new setting. */
+        public void restartHeartRate() {
+            closeHeartRateChannel();
+            updateHeartRateChannel();
+        }
+
+        /** Heart rate from the ANT+ monitor in bpm, or 0 if none was received in the last 5 s. */
+        public int getHeartRate() {
+            return mHeartRate.heartRate(SystemClock.elapsedRealtime());
+        }
+
+        /** Device number of the monitor being received, 0 if not known (yet). */
+        public int getHeartRateDevice() {
+            return mHeartRateDevice;
+        }
+
+        /** Whether the heart-rate channel is open (searching or receiving). */
+        public boolean isHeartRateChannelOpen() {
+            return heartRateChannelController != null;
         }
 
         void clearAllChannels() {
@@ -123,16 +162,39 @@ public class ChannelService extends Service {
         if (on)
             openIfWanted();
         else
-            closeAllChannels();
+            closeBroadcastChannels();
     }
 
-    private void openIfWanted() {
-        if (!mBroadcastWanted || !mAllowAddChannel || powerChannelController != null)
+    private synchronized void updateHeartRateChannel() {
+        if (mHeartRateForRide || mHeartRateSearch)
+            openIfWanted();
+        else
+            closeHeartRateChannel();
+    }
+
+    private synchronized void openIfWanted() {
+        if (!mAllowAddChannel)
             return;
-        try {
-            openAllChannels();
-        } catch (ChannelNotAvailableException e) {
-            BtLog.log("ANT channels not available: " + e.getMessage());
+        if (mBroadcastWanted && powerChannelController == null) {
+            try {
+                openAllChannels();
+            } catch (ChannelNotAvailableException e) {
+                BtLog.log("ANT channels not available: " + e.getMessage());
+            }
+        }
+        if ((mHeartRateForRide || mHeartRateSearch) && heartRateChannelController == null) {
+            try {
+                int device = BtSettings.heartRateDevice(this);
+                mHeartRateDevice = device;
+                heartRateChannelController = new HeartRateChannelController(acquireChannel(), device, mHeartRate,
+                        number -> {
+                            mHeartRateDevice = number;
+                            if (BtSettings.heartRateDevice(this) == 0)
+                                BtSettings.setHeartRateDevice(this, number);
+                        });
+            } catch (ChannelNotAvailableException e) {
+                BtLog.log("ANT heart-rate channel not available: " + e.getMessage());
+            }
         }
     }
 
@@ -142,7 +204,21 @@ public class ChannelService extends Service {
         speedChannelController = new SpeedChannelController(acquireChannel());
     }
 
-    private void closeAllChannels() {
+    private synchronized void closeAllChannels() {
+        closeBroadcastChannels();
+        closeHeartRateChannel();
+    }
+
+    private synchronized void closeHeartRateChannel() {
+        if (heartRateChannelController != null) {
+            BtLog.log("ANT heart rate: close");
+            heartRateChannelController.close();
+            heartRateChannelController = null;
+        }
+        mHeartRateDevice = 0;
+    }
+
+    private synchronized void closeBroadcastChannels() {
         if (powerChannelController != null || speedChannelController != null)
             BtLog.log("ANT channels close");
         if (powerChannelController != null) {

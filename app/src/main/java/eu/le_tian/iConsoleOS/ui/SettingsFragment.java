@@ -1,7 +1,13 @@
 package eu.le_tian.iConsoleOS.ui;
 
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.net.Uri;
 import android.graphics.Typeface;
 import android.text.TextUtils;
@@ -25,6 +31,7 @@ import java.util.Locale;
 
 import eu.le_tian.iConsoleOS.communication.BtLog;
 import eu.le_tian.iConsoleOS.communication.BtSettings;
+import eu.le_tian.iConsoleOS.communication.ChannelService;
 import eu.le_tian.iConsoleOS.data.BackupFiles;
 import eu.le_tian.iConsoleOS.data.DatabaseBackup;
 import eu.le_tian.iConsoleOS.data.IConsoleRepository;
@@ -60,6 +67,33 @@ public class SettingsFragment extends Fragment {
     private IConsoleViewModel IConsoleViewModel;
     private FragmentSettingsBinding binding;
 
+    private static final long HR_SEARCH_MS = 60_000;
+    private ChannelService.ChannelServiceComm mAnt;
+    private boolean mAntBound;
+    private long mHrSearchUntil;
+    private final Handler mUi = new Handler(Looper.getMainLooper());
+    private final Runnable mHrTicker = new Runnable() {
+        @Override
+        public void run() {
+            if (mHrSearchUntil != 0 && SystemClock.elapsedRealtime() > mHrSearchUntil)
+                stopHeartRateSearch();
+            showHeartRateStatus();
+            if (binding != null)
+                mUi.postDelayed(this, 1000);
+        }
+    };
+    private final ServiceConnection mAntConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mAnt = (ChannelService.ChannelServiceComm) service;
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            mAnt = null;
+        }
+    };
+
     public View onCreateView(@NonNull LayoutInflater inflater,
                              ViewGroup container, Bundle savedInstanceState) {
         binding = FragmentSettingsBinding.inflate(inflater, container, false);
@@ -83,6 +117,80 @@ public class SettingsFragment extends Fragment {
 
         binding.btLogBtn.setOnClickListener(v -> showBluetoothLog());
         setupBluetoothSettings();
+        setupHeartRate();
+    }
+
+    @Override
+    public void onDestroyView() {
+        stopHeartRateSearch();
+        mUi.removeCallbacks(mHrTicker);
+        if (mAntBound) {
+            requireContext().unbindService(mAntConnection);
+            mAntBound = false;
+            mAnt = null;
+        }
+        super.onDestroyView();
+        binding = null;
+    }
+
+    /**
+     * Heart rate from the watch over ANT+. "Search" listens for 60 s, so pairing and the watch's
+     * "Broadcast heart rate" can be checked without the bike.
+     */
+    private void setupHeartRate() {
+        Context c = requireContext();
+        mAntBound = c.bindService(new Intent(c, ChannelService.class), mAntConnection, Context.BIND_AUTO_CREATE);
+        binding.hrReceiveSwitch.setChecked(BtSettings.heartRateReceive(c));
+        binding.hrReceiveSwitch.setOnCheckedChangeListener((b, on) -> BtSettings.setHeartRateReceive(c, on));
+        binding.hrSearchBtn.setOnClickListener(v -> {
+            if (mAnt == null) {
+                Snackbar.make(v, "ANT+ is not ready yet, try again in a moment", Snackbar.LENGTH_SHORT).show();
+                return;
+            }
+            mHrSearchUntil = SystemClock.elapsedRealtime() + HR_SEARCH_MS;
+            mAnt.setHeartRateSearch(true);
+            showHeartRateStatus();
+        });
+        binding.hrForgetBtn.setOnClickListener(v -> {
+            BtSettings.setHeartRateDevice(c, 0);
+            if (mAnt != null)
+                mAnt.restartHeartRate();
+            showHeartRateStatus();
+        });
+        mUi.post(mHrTicker);
+    }
+
+    private void stopHeartRateSearch() {
+        if (mHrSearchUntil != 0 && mAnt != null)
+            mAnt.setHeartRateSearch(false);
+        mHrSearchUntil = 0;
+    }
+
+    private void showHeartRateStatus() {
+        if (binding == null)
+            return;
+        int paired = BtSettings.heartRateDevice(requireContext());
+        String status;
+        if (mAnt != null && mAnt.isHeartRateChannelOpen()) {
+            int bpm = mAnt.getHeartRate();
+            if (bpm > 0)
+                status = "Receiving " + bpm + " bpm from monitor " + mAnt.getHeartRateDevice();
+            else
+                status = "Searching" + (paired != 0 ? " for monitor " + paired : "")
+                        + "... On the watch: heart rate widget → Broadcast Heart Rate.";
+            if (mHrSearchUntil != 0)
+                status += String.format(Locale.US, " (%d s)",
+                        Math.max(0, (mHrSearchUntil - SystemClock.elapsedRealtime()) / 1000));
+        } else if (mHrSearchUntil != 0) {
+            status = "Can't search: no ANT+ channel available (see the Bluetooth log).";
+        } else if (paired != 0) {
+            status = "Paired with heart-rate monitor " + paired + ".";
+        } else {
+            status = "No heart-rate monitor paired yet: tap Search while the watch broadcasts heart rate.";
+        }
+        binding.hrStatusText.setText(status);
+        binding.hrSearchBtn.setEnabled(mHrSearchUntil == 0);
+        binding.hrForgetBtn.setEnabled(paired != 0);
     }
 
 

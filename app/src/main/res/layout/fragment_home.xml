@@ -34,7 +34,7 @@
         app:layout_constraintBottom_toTopOf="@+id/guideline2"
         app:layout_constraintEnd_toEndOf="@+id/Heart"
         app:layout_constraintStart_toStartOf="@+id/Heart"
-        app:layout_constraintTop_toTopOf="@+id/textView6"
+        app:layout_constraintTop_toTopOf="@+id/heartLabel"
         app:srcCompat="@drawable/ic_heart" />
 
     <TextView
@@ -64,7 +64,7 @@
         app:layout_constraintStart_toStartOf="@+id/Calories" />
 
     <TextView
-        android:id="@+id/textView6"
+        android:id="@+id/heartLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="16dp"

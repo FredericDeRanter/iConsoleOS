@@ -103,6 +103,11 @@ MainActivity ── starts ──> BluetoothChatService (Service)
   power (ANT+ device type 0x0B) and speed (0x7B) as an ANT+ master, so a Garmin watch can pair with
   the tablet. The tablet has built-in ANT+ on the same Qualcomm chip as Bluetooth. Channels are only
   open while the bike is connected and Settings allows it (`BtSettings`).
+- `HeartRateChannelController` *receives* ANT+ heart rate (device type 0x78, slave) from the watch's
+  "Broadcast Heart Rate"; `HeartRateMonitor` (unit tested) keeps the latest value, fresh for 5 s.
+  Home uses the watch HR when fresh, else the bike's, for display and recording. It pairs with the
+  first monitor found and remembers its device number (`BtSettings`). Open while the bike is
+  connected, or for 60 s via Settings → Search (to test without the bike).
 - Bluetooth health (the tablet's Bluetooth stack hangs when it is left connected and idle):
   `BtLog` is a persistent event log in `files/bt-log*.txt`
   (`adb exec-out run-as eu.le_tian.iConsoleOS cat files/bt-log.1.txt files/bt-log.txt`), also

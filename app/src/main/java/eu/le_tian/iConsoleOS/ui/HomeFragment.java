@@ -44,6 +44,7 @@ import java.util.Locale;
 import eu.le_tian.iConsoleOS.communication.BluetoothChatService;
 import eu.le_tian.iConsoleOS.communication.BtLog;
 import eu.le_tian.iConsoleOS.communication.BtSettings;
+import eu.le_tian.iConsoleOS.communication.HeartRateMonitor;
 import eu.le_tian.iConsoleOS.communication.ChannelService;
 import eu.le_tian.iConsoleOS.communication.Constants;
 import eu.le_tian.iConsoleOS.DeviceListActivity;
@@ -157,18 +158,21 @@ public class HomeFragment extends Fragment {
                             mChannelService.setPower(data.mPower10 / 10);
                             mChannelService.setCadence(data.mRPM);
                         }
+                        int watchHR = mChannelService != null ? mChannelService.getHeartRate() : 0;
+                        int heartRate = HeartRateMonitor.choose(watchHR, data.mHF);
                         if (binding != null) { // no view while another screen is shown; keep recording
                             binding.Speed.setText(String.format("% 3.1f", data.mSpeed10 / 10.0));
                             binding.Power.setText(String.format("% 3.1f", data.mPower10 / 10.0));
                             binding.RPM.setText(String.format("%d", data.mRPM));
                             binding.Distance.setText(String.format("% 3.1f", data.mDistance10 / 10.0));
                             binding.Calories.setText(String.format("% 3d", data.mCalories));
-                            binding.Heart.setText(String.format("%d", data.mHF));
-                            binding.heartBeat2.setDurationBasedOnBPM(data.mHF);
+                            binding.Heart.setText(String.format("%d", heartRate));
+                            binding.heartBeat2.setDurationBasedOnBPM(heartRate);
+                            binding.heartLabel.setText(watchHR > 0 ? "Heart (watch)" : "Heart");
                         }
                         long timeInExercise = data.mTime - secondsTotalPaused;
                         SetTimeDisplay(timeInExercise, selectedDuration);
-                        ExerciseData exerciseData = new ExerciseData(0, data.mPower10, data.mSpeed10, data.mDistance10, data.mCalories, data.mHF, data.mRPM, timeInExercise, 0 /* parent ID filled in when stored */);
+                        ExerciseData exerciseData = new ExerciseData(0, data.mPower10, data.mSpeed10, data.mDistance10, data.mCalories, heartRate, data.mRPM, timeInExercise, 0 /* parent ID filled in when stored */);
                         IConsoleViewModel.insertExerciseData(exerciseData);
                     }
                     //binding.Time.setText(String.format("%s", data.getTimeStr()));
@@ -1105,6 +1109,7 @@ public class HomeFragment extends Fragment {
             return;
         boolean connected = mChatService != null && mChatService.getState() == BluetoothChatService.STATE_CONNECTED;
         mChannelService.setBroadcasting(connected && BtSettings.antBroadcast(context));
+        mChannelService.setReceivingHeartRate(connected && BtSettings.heartRateReceive(context));
     }
 
     /**
