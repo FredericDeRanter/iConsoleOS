@@ -67,6 +67,7 @@ dependencies {
     androidTestImplementation libs.room.testing
     androidTestImplementation libs.espresso.core
     implementation libs.recyclerview.selection
+    implementation libs.mpandroidchart // JitPack
 
     constraints {
         // room-testing (MigrationTest) needs kotlinx-serialization 1.8.x; the test APK shares the

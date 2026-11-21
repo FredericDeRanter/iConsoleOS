@@ -26,7 +26,7 @@ real hardware.
 | `:android_antlib_4-14-0` | Wraps the prebuilt Dynastream ANT radio library `android_antlib_4-14-0.jar`. Don't edit it. |
 
 Dependency versions live in `gradle/libs.versions.toml` (version catalog, referenced as
-`libs.*`). JitPack is a configured repository (no dependency uses it right now).
+`libs.*`). JitPack is a configured repository, needed for MPAndroidChart (`com.github.PhilJay`).
 
 The toolchain no longer runs Jetifier, so **any dependency built against the old support library
 (`android.support.*`) compiles but crashes at runtime** with `NoClassDefFoundError`. Check new
@@ -143,7 +143,8 @@ MainActivity ── starts ──> BluetoothChatService (Service)
   live graph (`graph/GraphView`), profile execution, and **recording**. Much of the app's
   behavior lives here.
 - `HistoryFragment` covers workout history and summarization. `ExerciseProfileFragment` + adapters are
-  the profile editor. `analytics/` shows progress graphs. `SettingsFragment` holds settings.
+  the profile editor. `analytics/` is the Progress screen: MPAndroidChart charts per week/month/ride, numbers from
+  the plain-Java `ProgressStats` (ISO weeks, duration-weighted averages, trend, bests; unit tested). `SettingsFragment` holds settings.
   `share/` and `send/` are leftover template fragments.
 - `IConsoleViewModel` is created per fragment (`new ViewModelProvider(this)`), so fragments do **not**
   share state through it; each gets its own instance and repository.
