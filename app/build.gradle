@@ -60,7 +60,6 @@ dependencies {
     implementation libs.lifecycle.viewmodel.ktx
     implementation libs.number.picker
     implementation project(':scrollablenumberpicker')
-    implementation libs.opencsv
     implementation project(':android_antlib_4-14-0')
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit

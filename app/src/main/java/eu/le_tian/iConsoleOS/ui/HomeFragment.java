@@ -45,6 +45,7 @@ import eu.le_tian.iConsoleOS.communication.BluetoothChatService;
 import eu.le_tian.iConsoleOS.communication.BtLog;
 import eu.le_tian.iConsoleOS.communication.BtSettings;
 import eu.le_tian.iConsoleOS.communication.HeartRateMonitor;
+import eu.le_tian.iConsoleOS.util.TimeFormat;
 import eu.le_tian.iConsoleOS.communication.ChannelService;
 import eu.le_tian.iConsoleOS.communication.Constants;
 import eu.le_tian.iConsoleOS.DeviceListActivity;
@@ -216,25 +217,6 @@ public class HomeFragment extends Fragment {
     };
     private boolean mChannelServiceBound = false;
 
-    private String convertLongToString(long timeInLong) {
-        StringBuilder b = new StringBuilder();
-        long day = timeInLong / 60 / 60 / 24;
-        if (day > 0)
-            b.append(String.format(Locale.US, "%02d:", day));
-        long hour = (timeInLong % (60 * 60 * 24)) / 60 / 60;
-        if (hour > 0) {
-            if (day > 0)
-                b.append(String.format(Locale.US, "%02d:", hour));
-            else
-                b.append(String.format(Locale.US, "%d:", hour));
-        }
-        long min = (timeInLong % (60 * 60)) / 60;
-        long sec = timeInLong % 60;
-        b.append(String.format(Locale.US, "%02d:%02d", min, sec));
-        return b.toString();
-    }
-
-
     /**
      * function to show the time during an exercise and to set the level if a profile is running.
      * and to draw the graph
@@ -251,7 +233,7 @@ public class HomeFragment extends Fragment {
 
         if (duration == 0 && timePassed > 0) {
             //no duration set, so just need to convert time passed
-            showTime(convertLongToString(timePassed));
+            showTime(TimeFormat.clock(timePassed));
             //DONE: add points to IConsoleViewModel.timeStampsAndLevelsDone
             //when selecting any profile, something is added in pointsAll always. That's enough to start drawing the graph (and keep drawing)
             //check previous level in graph, if same as current, do nothing. Else add point to done.
@@ -277,7 +259,7 @@ public class HomeFragment extends Fragment {
 
         } else if (duration > 0 && timePassed == 0) {
             //setting duration, but not running yet
-            showTime(convertLongToString(duration));
+            showTime(TimeFormat.clock(duration));
             //not running so clear the timeStampsAndLevelsDone
             IConsoleViewModel.timeStampsAndLevelsDone.clear();
 
@@ -285,7 +267,7 @@ public class HomeFragment extends Fragment {
             //running a profile with duration
 
             long leftTime = duration - timePassed;
-            showTime(convertLongToString(leftTime));
+            showTime(TimeFormat.clock(leftTime));
             //set the level according to the profile
             //Should be done: what if no profile data (only duration)?
             //DONE: create level adjuster variable (set with ++,--, + and - button
@@ -344,7 +326,7 @@ public class HomeFragment extends Fragment {
                 //if the exercise is finished running
                 //TODO: decide what to show when exercise is done. Maybe a user setting: if exercise is finished, stop or continue?
                 //exercise is done, but keeps running
-                showTime(convertLongToString(timePassed));
+                showTime(TimeFormat.clock(timePassed));
                 //DONE: keep adjusting graph
 
                 //if continue running, add new points to pointsDone. The graph will adjust itself accordingly. (no need to add points to pointAll.
@@ -364,7 +346,7 @@ public class HomeFragment extends Fragment {
             }
         } else if (duration == 0) {
             //no duration and no running exercise. so just set display to 00:00
-            showTime(convertLongToString(duration));
+            showTime(TimeFormat.clock(duration));
             //not running so clear the timeStampsAndLevelsDone
             IConsoleViewModel.timeStampsAndLevelsDone.clear();
         }
@@ -995,35 +977,6 @@ public class HomeFragment extends Fragment {
         }
     }
 
-
-    /**
-     * Makes this device discoverable for 300 seconds (5 minutes).
-     */
-    private void ensureDiscoverable() {
-        if (mBluetoothAdapter.getScanMode() !=
-                BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE) {
-            Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
-            discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300);
-            startActivity(discoverableIntent);
-        }
-    }
-
-    /**
-     * Sends a message.
-     *
-     * @param message A string of text to send.
-     */
-    private void sendMessage(String message) {
-        if (mChatService == null)
-            return;
-        // Check that we're actually connected before trying anything
-        if (mChatService.getState() != BluetoothChatService.STATE_CONNECTED) {
-            Toast.makeText(getActivity(), R.string.not_connected, Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        mChatService.startIConsole();
-    }
 
     /**
      * Updates the status on the action bar.

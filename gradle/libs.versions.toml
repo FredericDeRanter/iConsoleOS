@@ -12,7 +12,6 @@ material = "1.14.0"
 mpandroidchart = "v3.1.0"
 navigation = "2.10.2"
 numberPicker = "2.4.13"
-opencsv = "5.12.0"
 recyclerviewSelection = "1.2.0"
 room = "2.8.5"
 
@@ -31,7 +30,6 @@ mpandroidchart = { group = "com.github.PhilJay", name = "MPAndroidChart", versio
 navigation-fragment = { group = "androidx.navigation", name = "navigation-fragment", version.ref = "navigation" }
 navigation-ui = { group = "androidx.navigation", name = "navigation-ui", version.ref = "navigation" }
 number-picker = { group = "io.github.ShawnLin013", name = "number-picker", version.ref = "numberPicker" }
-opencsv = { group = "com.opencsv", name = "opencsv", version.ref = "opencsv" }
 recyclerview-selection = { group = "androidx.recyclerview", name = "recyclerview-selection", version.ref = "recyclerviewSelection" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

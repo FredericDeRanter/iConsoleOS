@@ -66,13 +66,10 @@ export JAVA_HOME=/home/frederic/opt/android-studio/jbr
 
 ### Unit tests are expected
 
-The only tests today are templates. When you change or add **pure logic**, add JUnit 4 tests
-under `app/src/test/java/eu/le_tian/iConsoleOS/...`. Good candidates:
-
-- `communication/IConsole` packet parsing: `Data(byte[])` decoding (each field is encoded as
-  value+1 per byte, in base-100 digit pairs), checksums, and `send_level` packet building.
-- `ui/IConsoleViewModel.CreateTimeStampsAndLevels` / `getMinDuration`, which turn a profile into a level timeline.
-- Workout summarization (avg/max power, speed, HR, RPM, totals) in the repository/ViewModel.
+When you change or add **pure logic**, add JUnit 4 tests under
+`app/src/test/java/eu/le_tian/iConsoleOS/...` (mirroring the package). Existing ones cover the
+`IConsole` protocol, `SampleCodec`, `WorkoutSummary`/`RideMetrics`, `WorkoutCsv`, `ProgressStats`,
+`BtLog`, `IdlePolicy`, `HeartRateMonitor` and `util/TimeFormat`.
 
 If logic is tangled with Android classes (`Handler`, `Context`, `LiveData`), prefer extracting a
 small plain-Java helper and testing that, rather than adding Robolectric or mocking frameworks
@@ -150,11 +147,11 @@ MainActivity ── starts ──> BluetoothChatService (Service)
 - `HistoryFragment` covers workout history and summarization. `ExerciseProfileFragment` + adapters are
   the profile editor. `analytics/` is the Progress screen: MPAndroidChart charts per week/month/ride, numbers from
   the plain-Java `ProgressStats` (ISO weeks, duration-weighted averages, trend, bests; unit tested). `SettingsFragment` holds settings.
-  `share/` and `send/` are leftover template fragments.
 - `IConsoleViewModel` is created per fragment (`new ViewModelProvider(this)`), so fragments do **not**
   share state through it; each gets its own instance and repository.
 - Custom widgets: `customtimepicker/`, `levelpicker/`, `heartbeat/`, `graph/`.
-- CSV export: `CSVclass/OpenCSVWriter.java` (opencsv).
+- CSV export: `data/WorkoutCsv` (RFC 4180, unit tested) via the file picker in History.
+- `util/TimeFormat.clock` formats every clock-style duration (Home timer, `IConsole.Data.getTimeStr`).
 
 ## Rules
 

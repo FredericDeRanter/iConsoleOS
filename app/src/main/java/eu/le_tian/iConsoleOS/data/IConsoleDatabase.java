@@ -115,10 +115,6 @@ public abstract class IConsoleDatabase extends RoomDatabase {
         }
     }
 
-    private static void clearDB() {
-
-    }
-
     private static void initDb() {
         databaseWriteExecutor.execute(() -> {
             //instance of all different DAOs:

@@ -6,7 +6,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
-import java.util.Locale;
+
+import eu.le_tian.iConsoleOS.util.TimeFormat;
 import java.util.concurrent.TimeoutException;
 import java.util.function.LongSupplier;
 
@@ -109,20 +110,7 @@ public class IConsole {
         }
 
         public String getTimeStr() {
-            long day, hour, min, sec;
-            StringBuilder b = new StringBuilder();
-            day = mTime / 60 / 60 / 24;
-            if (day > 0)
-                b.append(String.format(Locale.US, "%02d:", day));
-            hour = (mTime % (60 * 60 * 24)) / 60 / 60;
-            if (day > 0)
-                b.append(String.format(Locale.US, "%02d:", hour)); // always show hours once days are shown
-            else if (hour > 0)
-                b.append(String.format(Locale.US, "%d:", hour));
-            min = (mTime % (60 * 60)) / 60;
-            sec = mTime % 60;
-            b.append(String.format(Locale.US, "%02d:%02d", min, sec));
-            return b.toString();
+            return TimeFormat.clock(mTime);
         }
 
     }
